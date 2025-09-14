@@ -26,6 +26,18 @@ export interface UserExerciseResult {
   exercise: Exercise
 }
 
+export interface Curriculum {
+  id: number
+  title: string
+  description?: string
+  fileName: string
+  fileUrl: string
+  fileSize: number
+  mimeType: string
+  createdAt: string
+  updatedAt: string
+}
+
 const dictionaryApi = {
   register: async (data: { username: string; password: string; fullName: string }) => {
     return await axiosClient.post('/users/register', data)
@@ -51,6 +63,7 @@ const dictionaryApi = {
     pronunciation: string
     definition: string
     type: number
+    images?: string
   }) => {
     return await axiosClient.post('/dictionary', data)
   },
@@ -82,6 +95,7 @@ const dictionaryApi = {
     pronunciation: string
     definition: string
     type: number
+    images?: string
   }) => {
     return await axiosClient.put(`/dictionary/${data.id}`, data)
   },
@@ -129,6 +143,9 @@ const dictionaryApi = {
     return await axiosClient.put(`/exercise/${id}`, data)
   },
   findWord: async (word: string, type: number) => {
+    return await axiosClient.get(`/dictionary`, { params: { word, type } })
+  },
+  findWordsSuggestions: async (word: string, type: number) => {
     return await axiosClient.get(`/dictionary`, { params: { word, type } })
   },
   // New exercise methods
@@ -186,6 +203,48 @@ const dictionaryApi = {
     total: number
   }> => {
     return await axiosClient.get(`/exercise/${exerciseId}/submissions`)
+  },
+
+  // Curriculum API methods
+  createCurriculum: async (data: {
+    title: string
+    description?: string
+    fileName: string
+    fileUrl: string
+    fileSize: number
+    mimeType: string
+  }) => {
+    return await axiosClient.post('/curriculum', data)
+  },
+
+  getAllCurriculums: async (params: {
+    page: number
+    limit: number
+  }): Promise<{
+    contents: Curriculum[]
+    total: number
+    page: number
+    limit: number
+  }> => {
+    return await axiosClient.get('/curriculum', { params })
+  },
+
+  getCurriculum: async (id: number): Promise<Curriculum> => {
+    return await axiosClient.get(`/curriculum/${id}`)
+  },
+
+  updateCurriculum: async (
+    id: number,
+    data: {
+      title?: string
+      description?: string
+    }
+  ) => {
+    return await axiosClient.put(`/curriculum/${id}`, data)
+  },
+
+  deleteCurriculum: async (id: number) => {
+    return await axiosClient.delete(`/curriculum/${id}`)
   }
 }
 

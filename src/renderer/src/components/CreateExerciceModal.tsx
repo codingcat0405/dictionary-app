@@ -6,6 +6,7 @@ import { Form, Input, Modal, Button, Radio, Space, Divider } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import dictionaryApi, { Exercise } from '@renderer/apis/dictionary-api'
 import { toast } from 'react-hot-toast'
+import AudioUpload from './AudioUpload'
 
 interface Question {
   id: string
@@ -17,6 +18,7 @@ interface Question {
     D: string
   }
   correctAnswer: 'A' | 'B' | 'C' | 'D' | ''
+  audioUrl?: string | null
 }
 
 const CreateExerciseModal: React.FC<{
@@ -31,7 +33,8 @@ const CreateExerciseModal: React.FC<{
       id: '1',
       content: '',
       options: { A: '', B: '', C: '', D: '' },
-      correctAnswer: ''
+      correctAnswer: '',
+      audioUrl: null
     }
   ])
 
@@ -51,7 +54,8 @@ const CreateExerciseModal: React.FC<{
           C: q.answerC,
           D: q.answerD
         },
-        correctAnswer: String.fromCharCode(65 + q.rightAnswer) as 'A' | 'B' | 'C' | 'D'
+        correctAnswer: String.fromCharCode(65 + q.rightAnswer) as 'A' | 'B' | 'C' | 'D',
+        audioUrl: (q as any).audioUrl || null
       }))
 
       setQuestions(mappedQuestions)
@@ -63,7 +67,8 @@ const CreateExerciseModal: React.FC<{
           id: '1',
           content: '',
           options: { A: '', B: '', C: '', D: '' },
-          correctAnswer: ''
+          correctAnswer: '',
+          audioUrl: null
         }
       ])
     }
@@ -74,7 +79,8 @@ const CreateExerciseModal: React.FC<{
       id: Date.now().toString(),
       content: '',
       options: { A: '', B: '', C: '', D: '' },
-      correctAnswer: ''
+      correctAnswer: '',
+      audioUrl: null
     }
     setQuestions([...questions, newQuestion])
   }
@@ -85,19 +91,21 @@ const CreateExerciseModal: React.FC<{
     }
   }
 
-  const handleQuestionChange = (id: string, field: string, value: string): void => {
+  const handleQuestionChange = (id: string, field: string, value: string | null): void => {
     setQuestions(
       questions.map((q) => {
         if (q.id === id) {
           if (field === 'content') {
-            return { ...q, content: value }
+            return { ...q, content: value as string }
           } else if (field === 'correctAnswer') {
             return { ...q, correctAnswer: value as 'A' | 'B' | 'C' | 'D' | '' }
+          } else if (field === 'audioUrl') {
+            return { ...q, audioUrl: value }
           } else if (field.startsWith('option')) {
             const option = field.split('-')[1] as 'A' | 'B' | 'C' | 'D'
             return {
               ...q,
-              options: { ...q.options, [option]: value }
+              options: { ...q.options, [option]: value as string }
             }
           }
         }
@@ -113,7 +121,8 @@ const CreateExerciseModal: React.FC<{
       answerB: question.options.B,
       answerC: question.options.C,
       answerD: question.options.D,
-      rightAnswer: question.correctAnswer.charCodeAt(0) - 65 // A: 0, B: 1, C: 2, D: 3
+      rightAnswer: question.correctAnswer.charCodeAt(0) - 65, // A: 0, B: 1, C: 2, D: 3
+      audioUrl: question.audioUrl || undefined
     }))
 
     try {
@@ -140,7 +149,8 @@ const CreateExerciseModal: React.FC<{
           id: '1',
           content: '',
           options: { A: '', B: '', C: '', D: '' },
-          correctAnswer: ''
+          correctAnswer: '',
+          audioUrl: null
         }
       ])
     } catch (error) {
@@ -222,6 +232,13 @@ const CreateExerciseModal: React.FC<{
                 onChange={(e) => handleQuestionChange(question.id, 'content', e.target.value)}
                 placeholder="Nhập nội dung câu hỏi"
                 rows={2}
+              />
+            </Form.Item>
+
+            <Form.Item label="Audio câu hỏi (tùy chọn)" className="mb-4">
+              <AudioUpload
+                value={question.audioUrl || undefined}
+                onChange={(url) => handleQuestionChange(question.id, 'audioUrl', url)}
               />
             </Form.Item>
 

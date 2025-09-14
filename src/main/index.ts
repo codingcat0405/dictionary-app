@@ -26,6 +26,18 @@ function createWindow(): void {
     mainWindow.show()
   })
 
+  // Update CSP to allow images and media from backend server
+  mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          "img-src 'self' data: https: http: blob:; media-src 'self' data: https: http: blob:"
+        ]
+      }
+    })
+  })
+
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
@@ -74,12 +86,7 @@ function getDictionaryBasePath(subdir: string): string {
 
 // Create and initialize the reader
 const evDictPath = getDictionaryBasePath('ev')
-const evDict = new StarDictReader(
-  evDictPath,
-  'en_vi.ifo',
-  'en_vi.idx',
-  'en_vi.dict.dz'
-)
+const evDict = new StarDictReader(evDictPath, 'en_vi.ifo', 'en_vi.idx', 'en_vi.dict.dz')
 const evInitialized = evDict.initialize()
 
 const veDictPath = getDictionaryBasePath('ve')
@@ -202,6 +209,201 @@ app.whenReady().then(() => {
       } catch (err) {
         console.log(err)
         return null
+      }
+    }
+  )
+
+  // Add image upload handler
+  ipcMain.handle(
+    'upload-images',
+    async (): Promise<{ success: boolean; urls: string[]; error?: string }> => {
+      try {
+        const result = await dialog.showOpenDialog({
+          properties: ['openFile', 'multiSelections'],
+          filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }]
+        })
+
+        if (result.filePaths.length === 0) {
+          return { success: false, urls: [], error: 'No files selected' }
+        }
+
+        const uploadPromises = result.filePaths.map(async (filePath) => {
+          try {
+            const fileBuffer = fs.readFileSync(filePath)
+            const fileName = path.basename(filePath)
+            const [, extension] = fileName.split('.')
+            const newFileName = `${new Date().getTime()}_${Math.random().toString(36).substring(7)}.${extension}`
+
+            // Create uploads directory in the backend's public folder
+            // Assuming the backend is in a sibling directory
+            const backendPublicDir = path.join(
+              process.cwd(),
+              '..',
+              'dictionary-be',
+              'public',
+              'uploads'
+            )
+            if (!fs.existsSync(backendPublicDir)) {
+              fs.mkdirSync(backendPublicDir, { recursive: true })
+            }
+
+            const uploadPath = path.join(backendPublicDir, newFileName)
+            fs.writeFileSync(uploadPath, fileBuffer)
+
+            // Return the URL path that can be accessed by the backend
+            return `/uploads/${newFileName}`
+          } catch (error) {
+            console.error('Error uploading file:', error)
+            throw error
+          }
+        })
+
+        const urls = await Promise.all(uploadPromises)
+        return { success: true, urls }
+      } catch (error) {
+        console.error('Error in upload-images:', error)
+        return {
+          success: false,
+          urls: [],
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }
+      }
+    }
+  )
+
+  // Add audio upload handler
+  ipcMain.handle(
+    'upload-audio',
+    async (): Promise<{ success: boolean; url: string | null; error?: string }> => {
+      try {
+        const result = await dialog.showOpenDialog({
+          properties: ['openFile'],
+          filters: [{ name: 'Audio Files', extensions: ['mp3', 'wav', 'ogg', 'm4a', 'aac'] }]
+        })
+
+        if (result.filePaths.length === 0) {
+          return { success: false, url: null, error: 'No file selected' }
+        }
+
+        const filePath = result.filePaths[0]
+        const fileBuffer = fs.readFileSync(filePath)
+        const fileName = path.basename(filePath)
+        const [, extension] = fileName.split('.')
+        const newFileName = `${new Date().getTime()}_${Math.random().toString(36).substring(7)}.${extension}`
+
+        // Create uploads directory in the backend's public folder
+        const backendPublicDir = path.join(
+          process.cwd(),
+          '..',
+          'dictionary-be',
+          'public',
+          'uploads'
+        )
+        if (!fs.existsSync(backendPublicDir)) {
+          fs.mkdirSync(backendPublicDir, { recursive: true })
+        }
+
+        const uploadPath = path.join(backendPublicDir, newFileName)
+        fs.writeFileSync(uploadPath, fileBuffer)
+
+        // Return the URL path that can be accessed by the backend
+        return { success: true, url: `/uploads/${newFileName}` }
+      } catch (error) {
+        console.error('Error in upload-audio:', error)
+        return {
+          success: false,
+          url: null,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }
+      }
+    }
+  )
+
+  // Add document upload handler
+  ipcMain.handle(
+    'upload-document',
+    async (): Promise<{
+      success: boolean
+      url: string | null
+      fileName: string | null
+      fileSize: number | null
+      mimeType: string | null
+      error?: string
+    }> => {
+      try {
+        const result = await dialog.showOpenDialog({
+          properties: ['openFile'],
+          filters: [
+            { name: 'Documents', extensions: ['pdf', 'doc', 'docx', 'txt', 'rtf'] },
+            { name: 'PDF Files', extensions: ['pdf'] },
+            { name: 'Word Documents', extensions: ['doc', 'docx'] },
+            { name: 'Text Files', extensions: ['txt'] }
+          ]
+        })
+
+        if (result.filePaths.length === 0) {
+          return {
+            success: false,
+            url: null,
+            fileName: null,
+            fileSize: null,
+            mimeType: null,
+            error: 'No file selected'
+          }
+        }
+
+        const filePath = result.filePaths[0]
+        const fileBuffer = fs.readFileSync(filePath)
+        const fileName = path.basename(filePath)
+        const [, extension] = fileName.split('.')
+        const newFileName = `${new Date().getTime()}_${Math.random().toString(36).substring(7)}.${extension}`
+
+        // Create uploads directory in the backend's public folder
+        const backendPublicDir = path.join(
+          process.cwd(),
+          '..',
+          'dictionary-be',
+          'public',
+          'uploads'
+        )
+        if (!fs.existsSync(backendPublicDir)) {
+          fs.mkdirSync(backendPublicDir, { recursive: true })
+        }
+
+        const uploadPath = path.join(backendPublicDir, newFileName)
+        fs.writeFileSync(uploadPath, fileBuffer)
+
+        // Get file stats
+        const stats = fs.statSync(filePath)
+        const fileSize = stats.size
+
+        // Determine MIME type
+        const mimeTypes: { [key: string]: string } = {
+          pdf: 'application/pdf',
+          doc: 'application/msword',
+          docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          txt: 'text/plain',
+          rtf: 'application/rtf'
+        }
+        const mimeType = mimeTypes[extension] || 'application/octet-stream'
+
+        return {
+          success: true,
+          url: `/uploads/${newFileName}`,
+          fileName: fileName,
+          fileSize: fileSize,
+          mimeType: mimeType
+        }
+      } catch (error) {
+        console.error('Error in upload-document:', error)
+        return {
+          success: false,
+          url: null,
+          fileName: null,
+          fileSize: null,
+          mimeType: null,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }
       }
     }
   )

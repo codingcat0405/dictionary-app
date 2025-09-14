@@ -7,6 +7,7 @@ import ReactQuill from 'react-quill'
 import 'react-quill/dist/quill.snow.css'
 import dictionaryApi from '@renderer/apis/dictionary-api'
 import { useQuery } from '@tanstack/react-query'
+import ImageUpload from '@renderer/components/ImageUpload'
 const Dictionary: React.FC = () => {
   const [dictionaryParams, setDictionaryParams] = useState({
     page: 0,
@@ -18,6 +19,7 @@ const Dictionary: React.FC = () => {
     pronunciation: string
     definition: string
     type: number
+    images?: string
   } | null>(null)
   const {
     data: dictionaryList = { contents: [], total: 0, page: 0, limit: 0 },
@@ -33,7 +35,8 @@ const Dictionary: React.FC = () => {
       word: item.word,
       dictionary: item.type === 0 ? 'Anh - Việt' : 'Việt - Anh',
       meaning: item.definition,
-      pronunciation: item.pronunciation
+      pronunciation: item.pronunciation,
+      images: (item as any).images
     }))
   }, [dictionaryList])
   const [isCreatingDictionary, setIsCreatingDictionary] = useState(false)
@@ -86,13 +89,26 @@ const Dictionary: React.FC = () => {
                 word: record.word,
                 pronunciation: record.pronunciation,
                 type: record.dictionary === 'ev' ? 0 : 1,
-                id: record.key
+                id: record.key,
+                images: record.images
               })
+
+              // Parse images from JSON string
+              let imageUrls: string[] = []
+              try {
+                if (record.images) {
+                  imageUrls = JSON.parse(record.images)
+                }
+              } catch (error) {
+                console.error('Error parsing images:', error)
+              }
+
               form.setFieldsValue({
                 dictionary: record.dictionary === 'ev' ? 'ev' : 've',
                 word: record.word,
                 pronunciation: record.pronunciation,
-                meaning: record.meaning
+                meaning: record.meaning,
+                images: imageUrls
               })
               setIsCreatingDictionary(true)
             }}
@@ -111,13 +127,18 @@ const Dictionary: React.FC = () => {
   const [form] = Form.useForm()
   const handleCreateDictionary = async (values): Promise<void> => {
     try {
+      // Convert images array to JSON string
+      const imagesJson =
+        values.images && values.images.length > 0 ? JSON.stringify(values.images) : undefined
+
       if (editDictionary?.id) {
         await dictionaryApi.updateDictionary({
           id: editDictionary.id,
           word: values.word,
           pronunciation: values.pronunciation,
           definition: values.meaning,
-          type: values.dictionary === 'ev' ? 0 : 1 //0: english -> vietnamese, 1: vietnamese -> english
+          type: values.dictionary === 'ev' ? 0 : 1, //0: english -> vietnamese, 1: vietnamese -> english
+          images: imagesJson
         })
         await refetchDictionaryList()
         toast.success('Cập nhật từ thành công')
@@ -130,7 +151,8 @@ const Dictionary: React.FC = () => {
         word: values.word,
         pronunciation: values.pronunciation,
         definition: values.meaning,
-        type: values.dictionary === 'ev' ? 0 : 1 //0: english -> vietnamese, 1: vietnamese -> english
+        type: values.dictionary === 'ev' ? 0 : 1, //0: english -> vietnamese, 1: vietnamese -> english
+        images: imagesJson
       })
       await refetchDictionaryList()
       toast.success('Thêm từ thành công')
@@ -138,6 +160,7 @@ const Dictionary: React.FC = () => {
       form.resetFields()
     } catch (error) {
       console.log(error)
+      toast.error('Có lỗi xảy ra khi lưu từ')
     }
   }
   return (
@@ -222,6 +245,9 @@ const Dictionary: React.FC = () => {
           </Row>
           <Form.Item label="Định nghĩa" name="meaning">
             <ReactQuill theme="snow" />
+          </Form.Item>
+          <Form.Item label="Hình ảnh" name="images">
+            <ImageUpload maxCount={5} />
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" className="w-full">

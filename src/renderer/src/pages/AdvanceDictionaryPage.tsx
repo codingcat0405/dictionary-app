@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react'
-import { Button, Dropdown, Input, Select, Card, Tag, Space } from 'antd'
+import React, { useState, useEffect, useCallback } from 'react'
+import { Button, Dropdown, Input, Select, Card, Tag, Space, Image } from 'antd'
 import { US, VN } from 'country-flag-icons/react/1x1'
 import { useNavigate } from 'react-router-dom'
 import dictionaryApi from '@renderer/apis/dictionary-api'
 import toast from 'react-hot-toast'
+import { debounce } from 'lodash'
+import { isProfane } from '@renderer/utils/badWordsFilter'
 
 interface DictionaryResult {
   id?: number
@@ -22,6 +24,11 @@ interface SavedWord {
   type: number
 }
 
+interface SuggestionItem {
+  label: string
+  key: string
+}
+
 //type!: number // 0: english -> vietnamese, 1: vietnamese -> english
 const AdvanceDictionaryPage: React.FC = () => {
   const navigate = useNavigate()
@@ -31,11 +38,50 @@ const AdvanceDictionaryPage: React.FC = () => {
   const [result, setResult] = useState<DictionaryResult | null>(null)
   const [recentWords, setRecentWords] = useState<SavedWord[]>([])
   const [savedWords, setSavedWords] = useState<SavedWord[]>([])
+  const [suggestionItems, setSuggestionItems] = useState<SuggestionItem[]>([])
+  const [debouncedValue, setDebouncedValue] = useState<string>('')
 
   // Load saved words from localStorage on component mount
   useEffect(() => {
     loadSavedWords()
   }, [])
+
+  // Create a debounced function for search suggestions
+  const debouncedSearch = useCallback(
+    debounce((value: string) => {
+      setDebouncedValue(value)
+    }, 500),
+    []
+  )
+
+  // Handle debounced search for suggestions
+  useEffect(() => {
+    if (debouncedValue && debouncedValue.length >= 2) {
+      // Check for bad words in debounced search
+      if (isProfane(debouncedValue)) {
+        setSuggestionItems([])
+        return
+      }
+
+      dictionaryApi
+        .findWordsSuggestions(debouncedValue, type)
+        .then((suggestions) => {
+          if (Array.isArray(suggestions)) {
+            const items: SuggestionItem[] = suggestions.slice(0, 10).map((item) => ({
+              label: item.word || '',
+              key: item.word || ''
+            }))
+            setSuggestionItems(items)
+          }
+        })
+        .catch((error) => {
+          console.error('Error fetching suggestions:', error)
+          setSuggestionItems([])
+        })
+    } else {
+      setSuggestionItems([])
+    }
+  }, [debouncedValue, type])
 
   const loadSavedWords = (): void => {
     const recentsStr = window.localStorage.getItem('advance_recents') ?? '[]'
@@ -83,6 +129,14 @@ const AdvanceDictionaryPage: React.FC = () => {
   const handleFindWord = async (e: React.MouseEvent<HTMLButtonElement>): Promise<void> => {
     try {
       e.preventDefault()
+
+      // Check for bad words
+      if (isProfane(inputValue.trim())) {
+        toast.error('Từ này không phù hợp để tra cứu')
+        setResult(null)
+        return
+      }
+
       console.log('inputValue', inputValue)
       console.log('type', type)
       const resp = await dictionaryApi.findWord(inputValue, type)
@@ -129,6 +183,30 @@ const AdvanceDictionaryPage: React.FC = () => {
     }
   }
 
+  const handleSuggestionClick = async (key: string): Promise<void> => {
+    // Check for bad words in suggestion click
+    if (isProfane(key)) {
+      toast.error('Từ này không phù hợp để tra cứu')
+      return
+    }
+
+    setInputValue(key)
+    setResult(null)
+    try {
+      const resp = await dictionaryApi.findWord(key, type)
+      if (resp && Array.isArray(resp) && resp.length > 0) {
+        setResult(resp[0])
+        saveToRecents(key, type)
+      } else {
+        toast.error('Không tìm thấy từ')
+        setResult(null)
+      }
+    } catch {
+      toast.error('Không tìm thấy từ')
+      setResult(null)
+    }
+  }
+
   const handleSpeak = (): void => {
     if (type === 1) {
       toast.error('Không hỗ trợ phát âm tiếng Việt')
@@ -137,17 +215,51 @@ const AdvanceDictionaryPage: React.FC = () => {
     window.electron.ipcRenderer.send('speak_word', result?.word?.trim() ?? '')
   }
 
+  const getImageUrls = (imagesJson: string | null): string[] => {
+    if (!imagesJson) return []
+    try {
+      const urls = JSON.parse(imagesJson)
+      console.log('Parsed image URLs from database:', urls)
+      return Array.isArray(urls) ? urls : []
+    } catch (error) {
+      console.error('Error parsing images:', error)
+      return []
+    }
+  }
+
+  const getImageUrl = (url: string): string => {
+    // If it's already a full URL, return as is
+    if (url.startsWith('http')) {
+      return url
+    }
+    // Otherwise, construct the full URL using the backend server
+    const backendUrl = localStorage.getItem('backendUrl') || 'http://localhost:3000'
+    const fullUrl = `${backendUrl}${url}`
+    console.log('Image URL construction:', { url, backendUrl, fullUrl })
+    return fullUrl
+  }
+
   return (
     <div className="mt-4">
       <div className="container mx-auto flex gap-2">
         <div className="w-1/3">
           <form className="bg-white rounded-lg shadow-md p-2 self-start">
             <div className="text-center font-bold text-lg mb-2">Tra từ chuyên ngành</div>
-            <Dropdown trigger={['click']} menu={{ items: [], onClick: () => {} }}>
+            <Dropdown
+              trigger={['click']}
+              menu={{
+                items: suggestionItems,
+                onClick: ({ key }) => handleSuggestionClick(key)
+              }}
+              open={suggestionItems.length > 0}
+            >
               <Input
                 placeholder="Nhập từ cần tra cứu"
                 value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
+                onChange={(e) => {
+                  setInputValue(e.target.value)
+                  debouncedSearch(e.target.value)
+                }}
               />
             </Dropdown>
 
@@ -164,7 +276,11 @@ const AdvanceDictionaryPage: React.FC = () => {
               <Select
                 style={{ width: 'calc(1/3 * 100%)' }}
                 defaultValue="0"
-                onChange={(value) => setType(Number(value))}
+                onChange={(value) => {
+                  setType(Number(value))
+                  setSuggestionItems([])
+                  setResult(null)
+                }}
               >
                 <Select.Option value="0">
                   <US />
@@ -247,6 +363,34 @@ const AdvanceDictionaryPage: React.FC = () => {
                         className="text-gray-700 leading-relaxed"
                         dangerouslySetInnerHTML={{ __html: result.definition }}
                       />
+                    </div>
+                  </div>
+                )}
+
+                {/* Images */}
+                {result.images && getImageUrls(result.images).length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-xl font-semibold text-gray-800">Hình ảnh:</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      {getImageUrls(result.images).map((imageUrl, index) => (
+                        <div key={index} className="relative">
+                          <Image
+                            src={getImageUrl(imageUrl)}
+                            alt={`${result.word} - Image ${index + 1}`}
+                            className="w-full h-32 object-cover rounded-lg shadow-sm"
+                            onLoad={() => {
+                              console.log('Image loaded successfully:', getImageUrl(imageUrl))
+                            }}
+                            onError={(e) => {
+                              console.error('Image load error:', e)
+                              console.error('Failed to load image:', getImageUrl(imageUrl))
+                            }}
+                            preview={{
+                              mask: 'Xem ảnh'
+                            }}
+                          />
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}

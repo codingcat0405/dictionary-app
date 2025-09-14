@@ -3,7 +3,7 @@ import { Button, Dropdown, Image, MenuProps, Space } from 'antd'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { DownOutlined } from '@ant-design/icons'
 import { ACCESS_TOKEN_KEY } from '@renderer/constants'
-import logo from '../assets/logo.png'
+import logo from '../assets/logo.jpg'
 const Header: React.FC = () => {
   const navigate = useNavigate()
   const { pathname } = useLocation()
@@ -43,6 +43,10 @@ const Header: React.FC = () => {
     },
     {
       key: '3',
+      label: <Link to="/curriculum">Giáo trình</Link>
+    },
+    {
+      key: '4',
       label: (
         <div
           onClick={() => {

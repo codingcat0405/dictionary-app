@@ -8,6 +8,7 @@ import LoginPage from '@renderer/pages/LoginPage'
 import ExercisePage from '@renderer/pages/ExercisePage'
 import RegisterPage from '@renderer/pages/RegisterPage'
 import AdvanceDictionaryPage from '@renderer/pages/AdvanceDictionaryPage'
+import CurriculumPage from '@renderer/pages/CurriculumPage'
 import ServerProtectedRoute from '@renderer/components/ServerProtectedRoute'
 
 const AppLayout: React.FC = () => {
@@ -59,6 +60,14 @@ const AppLayout: React.FC = () => {
             element={
               <ServerProtectedRoute>
                 <AdvanceDictionaryPage />
+              </ServerProtectedRoute>
+            }
+          />
+          <Route
+            path="/curriculum"
+            element={
+              <ServerProtectedRoute>
+                <CurriculumPage />
               </ServerProtectedRoute>
             }
           />

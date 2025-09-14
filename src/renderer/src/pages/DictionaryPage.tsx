@@ -5,6 +5,8 @@ import DictionaryEntry from '@renderer/components/DictionaryEntry'
 import { debounce } from 'lodash'
 import { US, VN } from 'country-flag-icons/react/1x1'
 import { useNavigate } from 'react-router-dom'
+import { isProfane } from '@renderer/utils/badWordsFilter'
+import toast from 'react-hot-toast'
 
 const DictionaryPage: React.FC = () => {
   const navigate = useNavigate()
@@ -62,6 +64,16 @@ const DictionaryPage: React.FC = () => {
 
   const handleLookupWord = async (w: string, dictionary: string): Promise<void> => {
     if (!w) return
+    
+    // Check for bad words
+    if (isProfane(w.trim())) {
+      toast.error('Từ này không phù hợp để tra cứu')
+      setDictionaryEntry(null)
+      setShowSimilarWords(false)
+      setSimilarWords([])
+      return
+    }
+    
     try {
       const resp = await window.electron.ipcRenderer.invoke('lookup_word', w.trim(), dictionary)
       setDictionaryEntry(resp)
@@ -103,6 +115,12 @@ const DictionaryPage: React.FC = () => {
   )
   useEffect(() => {
     if (debouncedValue) {
+      // Check for bad words in debounced search
+      if (isProfane(debouncedValue)) {
+        setSimilarMenuItems([])
+        return
+      }
+      
       window.electron.ipcRenderer
         .invoke('similar_word', debouncedValue, dictionary)
         .then((similarWords: string[]) => {

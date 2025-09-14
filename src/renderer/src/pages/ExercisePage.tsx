@@ -309,51 +309,75 @@ const ExercisePage: React.FC = () => {
 
                 <Divider />
 
-                {currentExercise.questions.map((question, index) => (
-                  <div key={question.id} className="mb-6">
-                    <div className="flex items-start mb-2">
-                      <Text strong className="mr-2">
-                        Câu {index + 1}:
-                      </Text>
-                      <Text>{question.question}</Text>
-                    </div>
+                {currentExercise.questions.map((question, index) => {
+                  const audioUrl = (question as any).audioUrl
+                  const getAudioUrl = (url: string) => {
+                    if (url.startsWith('http')) {
+                      return url
+                    }
+                    const backendUrl = localStorage.getItem('backendUrl') || 'http://localhost:3000'
+                    return `${backendUrl}${url}`
+                  }
 
-                    <Radio.Group
-                      className="ml-6"
-                      onChange={(e) => handleAnswerChange(question.id, e.target.value)}
-                      value={userAnswers[question.id]}
-                      disabled={submitted}
-                    >
-                      <Space direction="vertical">
-                        {Object.entries({
-                          A: question.answerA,
-                          B: question.answerB,
-                          C: question.answerC,
-                          D: question.answerD
-                        }).map(([key, value]) => (
-                          <Radio
-                            key={key}
-                            value={key}
-                            className={
-                              submitted
-                                ? key === getAnswerLabel(question.rightAnswer)
-                                  ? 'text-green-600 font-medium'
-                                  : userAnswers[question.id] === key
-                                    ? 'text-red-500'
-                                    : ''
-                                : ''
-                            }
-                          >
-                            {key}. {value}
-                            {submitted && key === getAnswerLabel(question.rightAnswer) && (
-                              <CheckCircleFilled className="ml-2 text-green-600" />
-                            )}
-                          </Radio>
-                        ))}
-                      </Space>
-                    </Radio.Group>
-                  </div>
-                ))}
+                  return (
+                    <div key={question.id} className="mb-6">
+                      <div className="flex items-start mb-2">
+                        <Text strong className="mr-2">
+                          Câu {index + 1}:
+                        </Text>
+                        <div className="flex-1">
+                          <Text>{question.question}</Text>
+                          {audioUrl && (
+                            <div className="mt-2">
+                              <audio
+                                src={getAudioUrl(audioUrl)}
+                                controls
+                                className="w-full max-w-md"
+                              >
+                                Your browser does not support the audio element.
+                              </audio>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <Radio.Group
+                        className="ml-6"
+                        onChange={(e) => handleAnswerChange(question.id, e.target.value)}
+                        value={userAnswers[question.id]}
+                        disabled={submitted}
+                      >
+                        <Space direction="vertical">
+                          {Object.entries({
+                            A: question.answerA,
+                            B: question.answerB,
+                            C: question.answerC,
+                            D: question.answerD
+                          }).map(([key, value]) => (
+                            <Radio
+                              key={key}
+                              value={key}
+                              className={
+                                submitted
+                                  ? key === getAnswerLabel(question.rightAnswer)
+                                    ? 'text-green-600 font-medium'
+                                    : userAnswers[question.id] === key
+                                      ? 'text-red-500'
+                                      : ''
+                                  : ''
+                              }
+                            >
+                              {key}. {value}
+                              {submitted && key === getAnswerLabel(question.rightAnswer) && (
+                                <CheckCircleFilled className="ml-2 text-green-600" />
+                              )}
+                            </Radio>
+                          ))}
+                        </Space>
+                      </Radio.Group>
+                    </div>
+                  )
+                })}
 
                 <Divider />
 
