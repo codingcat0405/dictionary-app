@@ -3,7 +3,7 @@ import { Button, Dropdown, Image, MenuProps, Space } from 'antd'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { DownOutlined } from '@ant-design/icons'
 import { ACCESS_TOKEN_KEY } from '@renderer/constants'
-import logo from '../assets/logo.jpg'
+import logo from '../assets/logo.png'
 const Header: React.FC = () => {
   const navigate = useNavigate()
   const { pathname } = useLocation()
