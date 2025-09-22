@@ -7,7 +7,9 @@ import { toast } from 'react-hot-toast'
 const Footer: React.FC = () => {
   const [form] = Form.useForm()
   const [isModalOpen, setIsModalOpen] = React.useState<boolean>(false)
-  const [hostIp, setHostIp] = React.useState<string>(localStorage.getItem('hostIp') || '')
+  const [backendUrl, setBackendUrl] = React.useState<string>(
+    localStorage.getItem('backendUrl') || ''
+  )
   const [isChecking, setIsChecking] = React.useState<boolean>(false)
 
   const checkServerHealth = async (ip: string): Promise<boolean> => {
@@ -37,8 +39,9 @@ const Footer: React.FC = () => {
       const isHealthy = await checkServerHealth(values.ip)
 
       if (isHealthy) {
-        window.localStorage.setItem('hostIp', values.ip)
-        setHostIp(values.ip)
+        const fullBackendUrl = `http://${values.ip}:3000`
+        window.localStorage.setItem('backendUrl', fullBackendUrl)
+        setBackendUrl(fullBackendUrl)
         updateApiBaseUrl()
         toast.success('Đã cập nhật IP máy chủ thành công')
         setIsModalOpen(false)
@@ -56,7 +59,7 @@ const Footer: React.FC = () => {
     <div className="w-full bg-blue-400 text-white py-2 px-6 flex items-center justify-between text-sm">
       <div>Version 1.0.0</div>
       <div className="flex items-center gap-2">
-        <div>IP máy chủ: {hostIp || 'Not configured'}</div>
+        <div>IP máy chủ: {backendUrl ? new URL(backendUrl).hostname : 'Not configured'}</div>
         <button className="cursor-pointer" onClick={() => setIsModalOpen(true)}>
           <IoIosSettings />
         </button>
@@ -86,7 +89,11 @@ const Footer: React.FC = () => {
           onFinish={handleUpdateHostIp}
           form={form}
           name="updateHostIp"
-          initialValues={{ ip: localStorage.getItem('hostIp') || '' }}
+          initialValues={{
+            ip: localStorage.getItem('backendUrl')
+              ? new URL(localStorage.getItem('backendUrl')!).hostname
+              : ''
+          }}
         >
           <Form.Item
             label="Địa chỉ IP máy chủ"

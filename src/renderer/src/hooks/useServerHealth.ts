@@ -37,9 +37,9 @@ const useServerHealth = (): ServerHealthStatus => {
   }
 
   const validateServerAccess = async (): Promise<void> => {
-    const hostIp = localStorage.getItem('hostIp')
+    const backendUrl = localStorage.getItem('backendUrl') || 'http://localhost:3000'
 
-    if (!hostIp) {
+    if (!backendUrl || backendUrl === 'http://localhost:3000') {
       setStatus({
         isConfigured: false,
         isHealthy: false,
@@ -48,6 +48,10 @@ const useServerHealth = (): ServerHealthStatus => {
       })
       return
     }
+
+    // Extract IP from backendUrl (e.g., "http://192.168.1.100:3000" -> "192.168.1.100")
+    const url = new URL(backendUrl)
+    const hostIp = url.hostname
 
     setStatus((prev) => ({ ...prev, isLoading: true, serverIp: hostIp }))
 
