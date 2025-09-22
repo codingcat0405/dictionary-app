@@ -248,7 +248,7 @@ const AdvanceDictionaryPage: React.FC = () => {
             <Dropdown
               trigger={['click']}
               menu={{
-                items: suggestionItems,
+                items: suggestionItems as any,
                 onClick: ({ key }) => handleSuggestionClick(key)
               }}
               open={suggestionItems.length > 0}
