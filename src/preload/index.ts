@@ -5,9 +5,10 @@ import { electronAPI } from '@electron-toolkit/preload'
 const api = {
   selectFile: () => ipcRenderer.invoke('select-file'),
   getDictionaryStatus: () => ipcRenderer.invoke('get_dictionary_status'),
-  uploadImages: () => ipcRenderer.invoke('upload-images'),
-  uploadAudio: () => ipcRenderer.invoke('upload-audio'),
-  uploadDocument: () => ipcRenderer.invoke('upload-document')
+  pickImages: () => ipcRenderer.invoke('pick-images'),
+  pickAudio: () => ipcRenderer.invoke('pick-audio'),
+  pickDocument: () => ipcRenderer.invoke('pick-document'),
+  readFile: (filePath: string) => ipcRenderer.invoke('read-file', filePath)
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

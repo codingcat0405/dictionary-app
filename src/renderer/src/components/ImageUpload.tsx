@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Button, Image, message, Card } from 'antd'
 import { UploadOutlined, DeleteOutlined } from '@ant-design/icons'
+import dictionaryApi from '@renderer/apis/dictionary-api'
 
 interface ImageUploadProps {
   value?: string[]
@@ -14,14 +15,34 @@ const ImageUpload: React.FC<ImageUploadProps> = ({ value = [], onChange, maxCoun
   const handleUpload = async () => {
     try {
       setUploading(true)
-      const result = await window.api.uploadImages()
+      // Pick files using Electron
+      const pickResult = await window.api.pickImages()
 
-      if (result.success) {
-        const newUrls = [...value, ...result.urls].slice(0, maxCount)
+      if (!pickResult.success || pickResult.filePaths.length === 0) {
+        if (pickResult.error) {
+          message.error(pickResult.error)
+        }
+        return
+      }
+
+      // Convert file paths to File objects and upload via HTTP
+      const { readFilesAsFiles } = await import('@renderer/utils/fileReader')
+      const files = await readFilesAsFiles(pickResult.filePaths)
+
+      // Upload to backend
+      const uploadResult = await dictionaryApi.uploadImages(files)
+
+      if (uploadResult.success && uploadResult.urls.length > 0) {
+        const newUrls = [...value, ...uploadResult.urls].slice(0, maxCount)
         onChange?.(newUrls)
-        message.success(`Đã tải lên ${result.urls.length} hình ảnh`)
+        message.success(`Đã tải lên ${uploadResult.urls.length} hình ảnh`)
       } else {
-        message.error(result.error || 'Tải lên thất bại')
+        const errors = uploadResult.errors || []
+        if (errors.length > 0) {
+          message.error(`Tải lên thất bại: ${errors.join(', ')}`)
+        } else {
+          message.error('Tải lên thất bại')
+        }
       }
     } catch (error) {
       console.error('Upload error:', error)
@@ -43,7 +64,9 @@ const ImageUpload: React.FC<ImageUploadProps> = ({ value = [], onChange, maxCoun
     }
     // Otherwise, construct the full URL using the backend server
     const backendUrl = localStorage.getItem('backendUrl') || 'http://localhost:3000'
-    const fullUrl = `${backendUrl}${url}`
+    // Ensure URL starts with / if it doesn't already
+    const urlPath = url.startsWith('/') ? url : `/${url}`
+    const fullUrl = `${backendUrl}${urlPath}`
     console.log('ImageUpload - Image URL construction:', { url, backendUrl, fullUrl })
     return fullUrl
   }

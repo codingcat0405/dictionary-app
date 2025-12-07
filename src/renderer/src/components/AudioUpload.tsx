@@ -6,6 +6,7 @@ import {
   PlayCircleOutlined,
   PauseCircleOutlined
 } from '@ant-design/icons'
+import dictionaryApi from '@renderer/apis/dictionary-api'
 
 interface AudioUploadProps {
   value?: string // Audio URL
@@ -33,13 +34,29 @@ const AudioUpload: React.FC<AudioUploadProps> = ({ value, onChange }) => {
 
   const handleUpload = async (): Promise<void> => {
     try {
-      const response = await window.api.uploadAudio()
-      if (response.success && response.url) {
-        setAudioUrl(response.url)
-        onChange?.(response.url)
+      // Pick file using Electron
+      const pickResult = await window.api.pickAudio()
+
+      if (!pickResult.success || !pickResult.filePath) {
+        if (pickResult.error) {
+          message.error(pickResult.error)
+        }
+        return
+      }
+
+      // Convert file path to File object
+      const { readFileAsFile } = await import('@renderer/utils/fileReader')
+      const file = await readFileAsFile(pickResult.filePath)
+
+      // Upload to backend
+      const uploadResult = await dictionaryApi.uploadAudio(file)
+
+      if (uploadResult.success && uploadResult.url) {
+        setAudioUrl(uploadResult.url)
+        onChange?.(uploadResult.url)
         message.success('Audio uploaded successfully.')
-      } else if (response.error) {
-        message.error(`Upload failed: ${response.error}`)
+      } else {
+        message.error('Upload failed')
       }
     } catch (error) {
       console.error('Error uploading audio:', error)

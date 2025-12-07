@@ -185,6 +185,16 @@ app.whenReady().then(() => {
     }
   })
 
+  // Add handler to read file for upload
+  ipcMain.handle('read-file', async (_, filePath: string): Promise<Buffer> => {
+    try {
+      return fs.readFileSync(filePath)
+    } catch (error) {
+      console.error('Error reading file:', error)
+      throw error
+    }
+  })
+
   ipcMain.handle(
     'choose-file',
     async (): Promise<{
@@ -213,118 +223,62 @@ app.whenReady().then(() => {
     }
   )
 
-  // Add image upload handler
+  // File picker handlers - only pick files, upload is done via HTTP
   ipcMain.handle(
-    'upload-images',
-    async (): Promise<{ success: boolean; urls: string[]; error?: string }> => {
+    'pick-images',
+    async (): Promise<{ success: boolean; filePaths: string[]; error?: string }> => {
       try {
         const result = await dialog.showOpenDialog({
           properties: ['openFile', 'multiSelections'],
           filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }]
         })
 
-        if (result.filePaths.length === 0) {
-          return { success: false, urls: [], error: 'No files selected' }
+        if (result.canceled || result.filePaths.length === 0) {
+          return { success: false, filePaths: [], error: 'No files selected' }
         }
 
-        const uploadPromises = result.filePaths.map(async (filePath) => {
-          try {
-            const fileBuffer = fs.readFileSync(filePath)
-            const fileName = path.basename(filePath)
-            const [, extension] = fileName.split('.')
-            const newFileName = `${new Date().getTime()}_${Math.random().toString(36).substring(7)}.${extension}`
-
-            // Create uploads directory in the backend's public folder
-            // Assuming the backend is in a sibling directory
-            const backendPublicDir = path.join(
-              process.cwd(),
-              '..',
-              'dictionary-be',
-              'public',
-              'uploads'
-            )
-            if (!fs.existsSync(backendPublicDir)) {
-              fs.mkdirSync(backendPublicDir, { recursive: true })
-            }
-
-            const uploadPath = path.join(backendPublicDir, newFileName)
-            fs.writeFileSync(uploadPath, fileBuffer)
-
-            // Return the URL path that can be accessed by the backend
-            return `/uploads/${newFileName}`
-          } catch (error) {
-            console.error('Error uploading file:', error)
-            throw error
-          }
-        })
-
-        const urls = await Promise.all(uploadPromises)
-        return { success: true, urls }
+        return { success: true, filePaths: result.filePaths }
       } catch (error) {
-        console.error('Error in upload-images:', error)
+        console.error('Error in pick-images:', error)
         return {
           success: false,
-          urls: [],
+          filePaths: [],
           error: error instanceof Error ? error.message : 'Unknown error'
         }
       }
     }
   )
 
-  // Add audio upload handler
   ipcMain.handle(
-    'upload-audio',
-    async (): Promise<{ success: boolean; url: string | null; error?: string }> => {
+    'pick-audio',
+    async (): Promise<{ success: boolean; filePath: string | null; error?: string }> => {
       try {
         const result = await dialog.showOpenDialog({
           properties: ['openFile'],
           filters: [{ name: 'Audio Files', extensions: ['mp3', 'wav', 'ogg', 'm4a', 'aac'] }]
         })
 
-        if (result.filePaths.length === 0) {
-          return { success: false, url: null, error: 'No file selected' }
+        if (result.canceled || result.filePaths.length === 0) {
+          return { success: false, filePath: null, error: 'No file selected' }
         }
 
-        const filePath = result.filePaths[0]
-        const fileBuffer = fs.readFileSync(filePath)
-        const fileName = path.basename(filePath)
-        const [, extension] = fileName.split('.')
-        const newFileName = `${new Date().getTime()}_${Math.random().toString(36).substring(7)}.${extension}`
-
-        // Create uploads directory in the backend's public folder
-        const backendPublicDir = path.join(
-          process.cwd(),
-          '..',
-          'dictionary-be',
-          'public',
-          'uploads'
-        )
-        if (!fs.existsSync(backendPublicDir)) {
-          fs.mkdirSync(backendPublicDir, { recursive: true })
-        }
-
-        const uploadPath = path.join(backendPublicDir, newFileName)
-        fs.writeFileSync(uploadPath, fileBuffer)
-
-        // Return the URL path that can be accessed by the backend
-        return { success: true, url: `/uploads/${newFileName}` }
+        return { success: true, filePath: result.filePaths[0] }
       } catch (error) {
-        console.error('Error in upload-audio:', error)
+        console.error('Error in pick-audio:', error)
         return {
           success: false,
-          url: null,
+          filePath: null,
           error: error instanceof Error ? error.message : 'Unknown error'
         }
       }
     }
   )
 
-  // Add document upload handler
   ipcMain.handle(
-    'upload-document',
+    'pick-document',
     async (): Promise<{
       success: boolean
-      url: string | null
+      filePath: string | null
       fileName: string | null
       fileSize: number | null
       mimeType: string | null
@@ -341,10 +295,10 @@ app.whenReady().then(() => {
           ]
         })
 
-        if (result.filePaths.length === 0) {
+        if (result.canceled || result.filePaths.length === 0) {
           return {
             success: false,
-            url: null,
+            filePath: null,
             fileName: null,
             fileSize: null,
             mimeType: null,
@@ -353,31 +307,12 @@ app.whenReady().then(() => {
         }
 
         const filePath = result.filePaths[0]
-        const fileBuffer = fs.readFileSync(filePath)
         const fileName = path.basename(filePath)
-        const [, extension] = fileName.split('.')
-        const newFileName = `${new Date().getTime()}_${Math.random().toString(36).substring(7)}.${extension}`
-
-        // Create uploads directory in the backend's public folder
-        const backendPublicDir = path.join(
-          process.cwd(),
-          '..',
-          'dictionary-be',
-          'public',
-          'uploads'
-        )
-        if (!fs.existsSync(backendPublicDir)) {
-          fs.mkdirSync(backendPublicDir, { recursive: true })
-        }
-
-        const uploadPath = path.join(backendPublicDir, newFileName)
-        fs.writeFileSync(uploadPath, fileBuffer)
-
-        // Get file stats
         const stats = fs.statSync(filePath)
         const fileSize = stats.size
 
-        // Determine MIME type
+        // Determine MIME type from extension
+        const ext = path.extname(fileName).slice(1).toLowerCase()
         const mimeTypes: { [key: string]: string } = {
           pdf: 'application/pdf',
           doc: 'application/msword',
@@ -385,20 +320,20 @@ app.whenReady().then(() => {
           txt: 'text/plain',
           rtf: 'application/rtf'
         }
-        const mimeType = mimeTypes[extension] || 'application/octet-stream'
+        const mimeType = mimeTypes[ext] || 'application/octet-stream'
 
         return {
           success: true,
-          url: `/uploads/${newFileName}`,
+          filePath: filePath,
           fileName: fileName,
           fileSize: fileSize,
           mimeType: mimeType
         }
       } catch (error) {
-        console.error('Error in upload-document:', error)
+        console.error('Error in pick-document:', error)
         return {
           success: false,
-          url: null,
+          filePath: null,
           fileName: null,
           fileSize: null,
           mimeType: null,

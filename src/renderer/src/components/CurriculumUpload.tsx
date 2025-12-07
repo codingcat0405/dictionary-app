@@ -6,6 +6,7 @@ import {
   FileTextOutlined,
   DownloadOutlined
 } from '@ant-design/icons'
+import dictionaryApi from '@renderer/apis/dictionary-api'
 
 interface CurriculumUploadProps {
   onUpload: (data: {
@@ -63,23 +64,33 @@ const CurriculumUpload: React.FC<CurriculumUploadProps> = ({ onUpload, onCancel 
   const handleUpload = async (): Promise<void> => {
     try {
       setUploading(true)
-      const response = await window.api.uploadDocument()
-      if (
-        response.success &&
-        response.url &&
-        response.fileName &&
-        response.fileSize &&
-        response.mimeType
-      ) {
+      // Pick file using Electron
+      const pickResult = await window.api.pickDocument()
+
+      if (!pickResult.success || !pickResult.filePath) {
+        if (pickResult.error) {
+          message.error(pickResult.error)
+        }
+        return
+      }
+
+      // Convert file path to File object
+      const { readFileAsFile } = await import('@renderer/utils/fileReader')
+      const file = await readFileAsFile(pickResult.filePath, pickResult.mimeType || undefined)
+
+      // Upload to backend
+      const uploadResult = await dictionaryApi.uploadDocument(file)
+
+      if (uploadResult.success && uploadResult.url) {
         setUploadedFile({
-          fileName: response.fileName,
-          fileUrl: response.url,
-          fileSize: response.fileSize,
-          mimeType: response.mimeType
+          fileName: uploadResult.fileName,
+          fileUrl: uploadResult.url,
+          fileSize: uploadResult.fileSize,
+          mimeType: uploadResult.mimeType
         })
         message.success('Tài liệu đã được tải lên thành công.')
-      } else if (response.error) {
-        message.error(`Tải lên thất bại: ${response.error}`)
+      } else {
+        message.error('Tải lên thất bại')
       }
     } catch (error) {
       console.error('Error uploading document:', error)

@@ -14,16 +14,17 @@ interface CustomAPI {
       wordCount: number
     }
   }>
-  uploadImages: () => Promise<{ success: boolean; urls: string[]; error?: string }>
-  uploadAudio: () => Promise<{ success: boolean; url: string | null; error?: string }>
-  uploadDocument: () => Promise<{
+  pickImages: () => Promise<{ success: boolean; filePaths: string[]; error?: string }>
+  pickAudio: () => Promise<{ success: boolean; filePath: string | null; error?: string }>
+  pickDocument: () => Promise<{
     success: boolean
-    url: string | null
+    filePath: string | null
     fileName: string | null
     fileSize: number | null
     mimeType: string | null
     error?: string
   }>
+  readFile: (filePath: string) => Promise<Buffer>
 }
 
 declare global {

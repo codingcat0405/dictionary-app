@@ -1,4 +1,4 @@
-import axiosClient from './axios-client'
+import axiosClient, { uploadClient } from './axios-client'
 export interface Exercise {
   id: number
   name: string
@@ -245,6 +245,61 @@ const dictionaryApi = {
 
   deleteCurriculum: async (id: number) => {
     return await axiosClient.delete(`/curriculum/${id}`)
+  },
+
+  // Upload APIs
+  uploadImage: async (file: File): Promise<{
+    success: boolean
+    url: string
+    fileName: string
+    fileSize: number
+    mimeType: string
+  }> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return await uploadClient.post('/upload/image', formData)
+  },
+
+  uploadImages: async (files: File[]): Promise<{
+    success: boolean
+    urls: string[]
+    results: Array<{
+      success: boolean
+      url: string
+      fileName: string
+      error?: string
+    }>
+    errors?: string[]
+  }> => {
+    const formData = new FormData()
+    files.forEach((file) => {
+      formData.append('files', file)
+    })
+    return await uploadClient.post('/upload/images', formData)
+  },
+
+  uploadAudio: async (file: File): Promise<{
+    success: boolean
+    url: string
+    fileName: string
+    fileSize: number
+    mimeType: string
+  }> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return await uploadClient.post('/upload/audio', formData)
+  },
+
+  uploadDocument: async (file: File): Promise<{
+    success: boolean
+    url: string
+    fileName: string
+    fileSize: number
+    mimeType: string
+  }> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return await uploadClient.post('/upload/document', formData)
   }
 }
 
