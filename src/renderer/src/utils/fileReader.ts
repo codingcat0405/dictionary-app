@@ -36,8 +36,12 @@ export async function readFileAsFile(filePath: string, mimeType?: string): Promi
     mimeType = mimeTypes[ext] || 'application/octet-stream'
   }
 
-  // Convert buffer to Blob then File
-  const blob = new Blob([fileBuffer], { type: mimeType })
+  // Convert Node.js Buffer to Uint8Array for Blob compatibility
+  // Buffer is compatible with Uint8Array, so we can use it directly
+  const uint8Array = new Uint8Array(fileBuffer)
+
+  // Convert to Blob then File
+  const blob = new Blob([uint8Array], { type: mimeType })
   return new File([blob], fileName, { type: mimeType })
 }
 
