@@ -1,8 +1,11 @@
 import React from 'react'
-import { Button, Form, Input } from 'antd'
+import { Form, Input } from 'antd'
 import { Link, useNavigate } from 'react-router-dom'
 import dictionaryApi from '@renderer/apis/dictionary-api'
-import { ACCESS_TOKEN_KEY } from '@renderer/constants'
+import { saveAuth } from '@/hooks/use-auth'
+import { toast } from 'sonner'
+import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 
 const LoginPage: React.FC = () => {
   const [form] = Form.useForm()
@@ -13,8 +16,7 @@ const LoginPage: React.FC = () => {
         username: values.username,
         password: values.password
       })
-      console.log(response)
-      localStorage.setItem(ACCESS_TOKEN_KEY, JSON.stringify(response))
+      saveAuth(response)
       if (response.user.role === 'admin') {
         navigate('/admin')
       } else {
@@ -22,12 +24,13 @@ const LoginPage: React.FC = () => {
       }
     } catch (error) {
       console.log(error)
+      toast.error('Đăng nhập thất bại. Vui lòng kiểm tra lại tài khoản và mật khẩu.')
     }
   }
   return (
-    <div className="pt-28 flex justify-center items-center">
-      <div className="w-1/2 border-2 border-blue-400 rounded-lg p-4">
-        <h4 className="font-bold text-lg text-center">Đăng nhập</h4>
+    <div className="flex min-h-screen items-center justify-center bg-neutral-50 p-6">
+      <Card className="w-full max-w-md p-6">
+        <h1 className="text-display mb-4 text-center text-neutral-900">Đăng nhập</h1>
         <Form form={form} onFinish={handleSubmit} layout="vertical" name="login">
           <Form.Item
             name="username"
@@ -43,16 +46,16 @@ const LoginPage: React.FC = () => {
           >
             <Input.Password />
           </Form.Item>
-          <Button className="mt-2 w-full" type="primary" htmlType="submit">
+          <Button className="mt-2 w-full" type="submit">
             Đăng nhập
           </Button>
         </Form>
-        <div className="text-center mt-2">
-          <Link to="/register" className="cursor-pointer text-blue-600 underline">
+        <div className="mt-4 text-center text-small">
+          <Link to="/register" className="cursor-pointer text-primary-600 hover:underline">
             Chưa có tài khoản? Đăng ký{' '}
           </Link>
         </div>
-      </div>
+      </Card>
     </div>
   )
 }

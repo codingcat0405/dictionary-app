@@ -25,6 +25,10 @@ interface CustomAPI {
     error?: string
   }>
   readFile: (filePath: string) => Promise<Buffer>
+  saveFileToDisk: (
+    url: string,
+    suggestedFileName: string
+  ) => Promise<{ success: boolean; canceled?: boolean; filePath?: string; error?: string }>
 }
 
 declare global {

@@ -1,12 +1,12 @@
 import React, { useState } from 'react'
-import { Button, message, Card, Input, Form } from 'antd'
-import {
-  UploadOutlined,
-  DeleteOutlined,
-  FileTextOutlined,
-  DownloadOutlined
-} from '@ant-design/icons'
+import { Form, Input } from 'antd'
+import { toast } from 'sonner'
 import dictionaryApi from '@renderer/apis/dictionary-api'
+import { resolveAssetUrl } from '@/lib/backend-url'
+import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Upload, Trash2, Download, FileText } from 'lucide-react'
 
 interface CurriculumUploadProps {
   onUpload: (data: {
@@ -30,13 +30,7 @@ const CurriculumUpload: React.FC<CurriculumUploadProps> = ({ onUpload, onCancel 
   } | null>(null)
   const [uploading, setUploading] = useState(false)
 
-  const getFileUrl = (url: string) => {
-    if (url.startsWith('http')) {
-      return url
-    }
-    const backendUrl = localStorage.getItem('backendUrl') || 'http://localhost:3000'
-    return `${backendUrl}${url}`
-  }
+  const getFileUrl = (url: string): string => resolveAssetUrl(url)
 
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes'
@@ -46,7 +40,7 @@ const CurriculumUpload: React.FC<CurriculumUploadProps> = ({ onUpload, onCancel 
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
-  const getFileIcon = (mimeType: string) => {
+  const getFileIcon = (mimeType: string): string => {
     if (mimeType.includes('pdf')) return '📄'
     if (mimeType.includes('word') || mimeType.includes('document')) return '📝'
     if (mimeType.includes('text')) return '📃'
@@ -69,7 +63,7 @@ const CurriculumUpload: React.FC<CurriculumUploadProps> = ({ onUpload, onCancel 
 
       if (!pickResult.success || !pickResult.filePath) {
         if (pickResult.error) {
-          message.error(pickResult.error)
+          toast.error(pickResult.error)
         }
         return
       }
@@ -88,13 +82,13 @@ const CurriculumUpload: React.FC<CurriculumUploadProps> = ({ onUpload, onCancel 
           fileSize: uploadResult.fileSize,
           mimeType: uploadResult.mimeType
         })
-        message.success('Tài liệu đã được tải lên thành công.')
+        toast.success('Tài liệu đã được tải lên thành công.')
       } else {
-        message.error('Tải lên thất bại')
+        toast.error('Tải lên thất bại')
       }
     } catch (error) {
       console.error('Error uploading document:', error)
-      message.error('Không thể tải lên tài liệu.')
+      toast.error('Không thể tải lên tài liệu.')
     } finally {
       setUploading(false)
     }
@@ -102,12 +96,12 @@ const CurriculumUpload: React.FC<CurriculumUploadProps> = ({ onUpload, onCancel 
 
   const handleRemove = (): void => {
     setUploadedFile(null)
-    message.success('Đã xóa tài liệu.')
+    toast.success('Đã xóa tài liệu.')
   }
 
   const handleSubmit = async (): Promise<void> => {
     if (!uploadedFile) {
-      message.error('Vui lòng tải lên tài liệu trước.')
+      toast.error('Vui lòng tải lên tài liệu trước.')
       return
     }
 
@@ -127,83 +121,85 @@ const CurriculumUpload: React.FC<CurriculumUploadProps> = ({ onUpload, onCancel 
   }
 
   return (
-    <Card className="curriculum-upload-card">
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <span className="text-lg font-medium">Tải lên Giáo trình</span>
-        </div>
+    <Card className="gap-4 p-4">
+      <div className="flex items-center justify-between">
+        <span className="text-h3 text-neutral-900">Tải lên Giáo trình</span>
+      </div>
 
-        <Form form={form} layout="vertical">
-          <Form.Item
-            label="Tiêu đề"
-            name="title"
-            rules={[{ required: true, message: 'Vui lòng nhập tiêu đề!' }]}
-          >
-            <Input placeholder="Nhập tiêu đề giáo trình" />
-          </Form.Item>
+      <Form form={form} layout="vertical">
+        <Form.Item
+          label="Tiêu đề"
+          name="title"
+          rules={[{ required: true, message: 'Vui lòng nhập tiêu đề!' }]}
+        >
+          <Input placeholder="Nhập tiêu đề giáo trình" />
+        </Form.Item>
 
-          <Form.Item label="Mô tả (tùy chọn)" name="description">
-            <Input.TextArea placeholder="Nhập mô tả về giáo trình" rows={3} />
-          </Form.Item>
+        <Form.Item label="Mô tả (tùy chọn)" name="description">
+          <Input.TextArea placeholder="Nhập mô tả về giáo trình" rows={3} />
+        </Form.Item>
 
-          <Form.Item label="Tài liệu" required>
-            {!uploadedFile ? (
-              <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
-                <FileTextOutlined className="text-4xl text-gray-400 mb-4" />
-                <div className="text-gray-500 mb-4">Chưa có tài liệu nào được tải lên</div>
-                <Button
-                  type="primary"
-                  icon={<UploadOutlined />}
-                  onClick={handleUpload}
-                  loading={uploading}
-                >
-                  Tải lên tài liệu
-                </Button>
-                <div className="text-sm text-gray-400 mt-2">Hỗ trợ: PDF, DOC, DOCX, TXT, RTF</div>
+        <Form.Item label="Tài liệu" required>
+          {!uploadedFile ? (
+            <div className="rounded-lg border-2 border-dashed border-neutral-300 py-8 text-center">
+              <FileText className="mx-auto mb-4 size-10 text-neutral-400" />
+              <div className="mb-4 text-body text-muted-foreground">
+                Chưa có tài liệu nào được tải lên
               </div>
-            ) : (
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <span className="text-2xl">{getFileIcon(uploadedFile.mimeType)}</span>
-                    <div>
-                      <div className="font-medium">{uploadedFile.fileName}</div>
-                      <div className="text-sm text-gray-500">
-                        {formatFileSize(uploadedFile.fileSize)} •{' '}
-                        {getFileTypeDisplay(uploadedFile.mimeType)}
-                      </div>
+              <Button onClick={handleUpload} disabled={uploading}>
+                <Upload className={uploading ? 'animate-spin' : undefined} />
+                Tải lên tài liệu
+              </Button>
+              <div className="mt-2 text-small text-neutral-400">
+                Hỗ trợ: PDF, DOC, DOCX, TXT, RTF
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-lg bg-neutral-50 p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">{getFileIcon(uploadedFile.mimeType)}</span>
+                  <div>
+                    <div className="text-body-md text-neutral-900">{uploadedFile.fileName}</div>
+                    <div className="flex items-center gap-2 text-small text-muted-foreground">
+                      <span>{formatFileSize(uploadedFile.fileSize)}</span>
+                      <Badge variant="outline">{getFileTypeDisplay(uploadedFile.mimeType)}</Badge>
                     </div>
                   </div>
-                  <div className="flex space-x-2">
-                    <Button
-                      type="link"
-                      icon={<DownloadOutlined />}
-                      onClick={() => {
-                        const link = document.createElement('a')
-                        link.href = getFileUrl(uploadedFile.fileUrl)
-                        link.download = uploadedFile.fileName
-                        link.click()
-                      }}
-                    >
-                      Tải xuống
-                    </Button>
-                    <Button type="primary" danger icon={<DeleteOutlined />} onClick={handleRemove}>
-                      Xóa
-                    </Button>
-                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const link = document.createElement('a')
+                      link.href = getFileUrl(uploadedFile.fileUrl)
+                      link.download = uploadedFile.fileName
+                      link.click()
+                    }}
+                  >
+                    <Download />
+                    Tải xuống
+                  </Button>
+                  <Button variant="destructive" size="sm" onClick={handleRemove}>
+                    <Trash2 />
+                    Xóa
+                  </Button>
                 </div>
               </div>
-            )}
-          </Form.Item>
+            </div>
+          )}
+        </Form.Item>
 
-          <div className="flex justify-end space-x-2">
-            <Button onClick={onCancel}>Hủy</Button>
-            <Button type="primary" onClick={handleSubmit} disabled={!uploadedFile}>
-              Lưu Giáo trình
-            </Button>
-          </div>
-        </Form>
-      </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={onCancel}>
+            Hủy
+          </Button>
+          <Button onClick={handleSubmit} disabled={!uploadedFile}>
+            Lưu Giáo trình
+          </Button>
+        </div>
+      </Form>
     </Card>
   )
 }

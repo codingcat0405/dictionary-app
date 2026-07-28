@@ -1,6 +1,8 @@
 import { Exercise } from '@renderer/apis/dictionary-api'
-import { Modal, Tag } from 'antd'
+import { Modal } from 'antd'
 import React from 'react'
+import { Badge } from '@/components/ui/badge'
+
 const ViewExerciseModal: React.FC<{
   exercise: Exercise | null
   open: boolean
@@ -21,65 +23,48 @@ const ViewExerciseModal: React.FC<{
     >
       <div className="space-y-4">
         <div className="flex items-center gap-2">
-          <span className="font-medium">Tên bài tập:</span>
-          <span>{exercise?.name}</span>
+          <span className="text-body-md text-neutral-900">Tên bài tập:</span>
+          <span className="text-body text-neutral-700">{exercise?.name}</span>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="font-medium">Số câu hỏi:</span>
-          <Tag color="blue">{exercise?.questions?.length} câu</Tag>
+          <span className="text-body-md text-neutral-900">Số câu hỏi:</span>
+          <Badge variant="secondary">{exercise?.questions?.length} câu</Badge>
         </div>
 
         <div className="space-y-4">
-          <h3 className="font-semibold text-lg">Danh sách câu hỏi:</h3>
+          <h3 className="text-h3 text-neutral-900">Danh sách câu hỏi:</h3>
           {exercise?.questions?.map((question, index) => (
-            <div key={index} className="border rounded-lg p-4 bg-gray-50">
-              <div className="flex items-start gap-2 mb-3">
-                <span className="font-bold text-blue-600">Câu {index + 1}:</span>
-                <span>{question.question}</span>
+            <div key={index} className="rounded-lg border bg-neutral-50 p-4">
+              <div className="mb-3 flex items-start gap-2">
+                <span className="text-body-md text-primary-600">Câu {index + 1}:</span>
+                <span className="text-body text-neutral-800">{question.question}</span>
               </div>
 
-              <div className="space-y-2 ml-6">
-                <div
-                  className={`p-2 rounded ${question.rightAnswer === 0 ? 'bg-green-100 border-green-300' : 'bg-gray-100'}`}
-                >
-                  <span className="font-medium">A.</span> {question.answerA}
-                  {question.rightAnswer === 0 && (
-                    <Tag color="green" className="ml-2">
-                      Đáp án đúng
-                    </Tag>
-                  )}
-                </div>
-                <div
-                  className={`p-2 rounded ${question.rightAnswer === 1 ? 'bg-green-100 border-green-300' : 'bg-gray-100'}`}
-                >
-                  <span className="font-medium">B.</span> {question.answerB}
-                  {question.rightAnswer === 1 && (
-                    <Tag color="green" className="ml-2">
-                      Đáp án đúng
-                    </Tag>
-                  )}
-                </div>
-                <div
-                  className={`p-2 rounded ${question.rightAnswer === 2 ? 'bg-green-100 border-green-300' : 'bg-gray-100'}`}
-                >
-                  <span className="font-medium">C.</span> {question.answerC}
-                  {question.rightAnswer === 2 && (
-                    <Tag color="green" className="ml-2">
-                      Đáp án đúng
-                    </Tag>
-                  )}
-                </div>
-                <div
-                  className={`p-2 rounded ${question.rightAnswer === 3 ? 'bg-green-100 border-green-300' : 'bg-gray-100'}`}
-                >
-                  <span className="font-medium">D.</span> {question.answerD}
-                  {question.rightAnswer === 3 && (
-                    <Tag color="green" className="ml-2">
-                      Đáp án đúng
-                    </Tag>
-                  )}
-                </div>
+              <div className="ml-6 space-y-2">
+                {(['A', 'B', 'C', 'D'] as const).map((label, answerIndex) => {
+                  const answerKey = `answer${label}` as
+                    | 'answerA'
+                    | 'answerB'
+                    | 'answerC'
+                    | 'answerD'
+                  const isCorrect = question.rightAnswer === answerIndex
+                  return (
+                    <div
+                      key={label}
+                      className={`rounded p-2 text-body ${
+                        isCorrect ? 'border border-success/30 bg-success-bg' : 'bg-neutral-100'
+                      }`}
+                    >
+                      <span className="font-medium">{label}.</span> {question[answerKey]}
+                      {isCorrect && (
+                        <Badge variant="default" className="ml-2 bg-success">
+                          Đáp án đúng
+                        </Badge>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           ))}

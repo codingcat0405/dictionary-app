@@ -1,26 +1,18 @@
-'use client'
-
 import { useState, useEffect } from 'react'
-import {
-  Col,
-  Row,
-  List,
-  Badge,
-  Radio,
-  Button,
-  Space,
-  Divider,
-  message,
-  Card,
-  Progress,
-  Typography,
-  Spin
-} from 'antd'
+import { Progress } from 'antd'
 import { CheckCircleFilled, ClockCircleFilled } from '@ant-design/icons'
 import dictionaryApi, { Exercise } from '@renderer/apis/dictionary-api'
-import toast from 'react-hot-toast'
-
-const { Title, Text } = Typography
+import { toast } from 'sonner'
+import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Separator } from '@/components/ui/separator'
+import { EmptyState } from '@/components/states/empty-state'
+import { ErrorState, type ErrorStateVariant } from '@/components/states/error-state'
+import { ListSkeleton } from '@/components/states/loading-skeleton'
+import { classifyError } from '@/components/states/classify-error'
+import { ExerciseQuestionPanel } from '@renderer/components/exercise-question-panel'
+import { ClipboardList } from 'lucide-react'
 
 interface ExerciseStatus {
   exerciseId: number
@@ -37,6 +29,7 @@ const ExercisePage: React.FC = () => {
   const [score, setScore] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadingExercises, setLoadingExercises] = useState(true)
+  const [listErrorVariant, setListErrorVariant] = useState<ErrorStateVariant | null>(null)
 
   // Load exercises from API
   useEffect(() => {
@@ -46,6 +39,7 @@ const ExercisePage: React.FC = () => {
   const loadExercises = async (): Promise<void> => {
     try {
       setLoadingExercises(true)
+      setListErrorVariant(null)
       const response = await dictionaryApi.getAllExercises({ page: 0, limit: 100 })
       setExercises(response.contents)
 
@@ -61,6 +55,7 @@ const ExercisePage: React.FC = () => {
     } catch (error) {
       console.error('Error loading exercises:', error)
       toast.error('Không thể tải danh sách bài tập')
+      setListErrorVariant(classifyError(error))
     } finally {
       setLoadingExercises(false)
     }
@@ -143,7 +138,7 @@ const ExercisePage: React.FC = () => {
     // Check if all questions are answered
     const answeredCount = Object.keys(userAnswers).length
     if (answeredCount < currentExercise.questions.length) {
-      message.warning(
+      toast.warning(
         `Vui lòng trả lời tất cả ${currentExercise.questions.length} câu hỏi trước khi nộp bài`
       )
       return
@@ -210,187 +205,101 @@ const ExercisePage: React.FC = () => {
       )
     )
 
-    message.info('Đã làm mới bài tập')
-  }
-
-  const getAnswerLabel = (index: number): string => {
-    return ['A', 'B', 'C', 'D'][index]
+    toast.info('Đã làm mới bài tập')
   }
 
   return (
-    <div className="p-4 bg-gray-50 min-h-screen">
-      <Title level={2} className="text-center mb-6">
-        Bài tập
-      </Title>
-      <Row gutter={16}>
-        <Col xs={24} md={8}>
-          <Card className="shadow-md mb-4">
-            <Title level={4} className="text-center mb-4">
-              Danh sách bài tập
-            </Title>
+    <div className="min-h-screen bg-neutral-50 p-6">
+      <h1 className="text-h1 mb-6 text-center text-neutral-900">Bài tập</h1>
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+        <div className="md:col-span-1">
+          <Card className="p-4">
+            <div className="text-h3 mb-4 text-center text-neutral-900">Danh sách bài tập</div>
             {loadingExercises ? (
-              <div className="text-center py-8">
-                <Spin size="large" />
-                <div className="mt-4">Đang tải bài tập...</div>
-              </div>
+              <ListSkeleton rows={4} />
+            ) : listErrorVariant ? (
+              <ErrorState variant={listErrorVariant} onRetry={loadExercises} />
+            ) : exercises.length === 0 ? (
+              <EmptyState icon={ClipboardList} message="Chưa có bài tập nào" />
             ) : (
-              <List
-                itemLayout="horizontal"
-                dataSource={exercises}
-                renderItem={(exercise) => {
+              <div className="space-y-2">
+                {exercises.map((exercise) => {
                   const status = getExerciseStatus(exercise.id)
+                  const isActive = currentExercise?.id === exercise.id
                   return (
-                    <List.Item
-                      className={`cursor-pointer hover:bg-gray-50 rounded p-2 transition ${currentExercise?.id === exercise.id ? 'bg-blue-50' : ''}`}
+                    <button
+                      key={exercise.id}
                       onClick={() => handleExerciseSelect(exercise)}
+                      className={`w-full rounded-md border p-3 text-left transition ${
+                        isActive ? 'border-primary-300 bg-primary-50' : 'hover:bg-neutral-50'
+                      }`}
                     >
-                      <List.Item.Meta
-                        title={
-                          <div className="flex items-center">
-                            <span>{exercise.name}</span>
-                            {status?.completed && (
-                              <Badge
-                                count={<CheckCircleFilled style={{ color: '#52c41a' }} />}
-                                className="ml-2"
-                              />
-                            )}
-                          </div>
-                        }
-                        description={
-                          <div>
-                            <div>Số câu hỏi: {exercise.questions.length}</div>
-                            <div className="flex items-center mt-1">
-                              <span className="mr-2">Trạng thái:</span>
-                              {status?.completed ? (
-                                <span className="text-green-600 flex items-center">
-                                  <CheckCircleFilled className="mr-1" />
-                                  Đã làm: {status.score}/{exercise.questions.length}
-                                </span>
-                              ) : (
-                                <span className="text-orange-500 flex items-center">
-                                  <ClockCircleFilled className="mr-1" />
-                                  Chưa làm
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        }
-                      />
-                    </List.Item>
+                      <div className="flex items-center gap-2">
+                        <span className="text-body-md text-neutral-900">{exercise.name}</span>
+                      </div>
+                      <div className="mt-1 text-small text-muted-foreground">
+                        Số câu hỏi: {exercise.questions.length}
+                      </div>
+                      <div className="mt-1">
+                        {status?.completed ? (
+                          <Badge variant="default" className="bg-success">
+                            <CheckCircleFilled className="mr-1" />
+                            Đã làm: {status.score}/{exercise.questions.length}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-warning">
+                            <ClockCircleFilled className="mr-1" />
+                            Chưa làm
+                          </Badge>
+                        )}
+                      </div>
+                    </button>
                   )
-                }}
-              />
+                })}
+              </div>
             )}
           </Card>
-        </Col>
+        </div>
 
-        <Col xs={24} md={16}>
-          <Card className="shadow-md">
+        <div className="md:col-span-2">
+          <Card className="p-4">
             {loading ? (
-              <div className="text-center py-12">
-                <Spin size="large" />
-                <div className="mt-4">Đang tải bài tập...</div>
-              </div>
+              <ListSkeleton rows={3} />
             ) : currentExercise ? (
               <>
-                <div className="flex justify-between items-center mb-4">
-                  <Title level={4}>{currentExercise.name}</Title>
+                <div className="mb-4 flex items-center justify-between">
+                  <h2 className="text-h3 text-neutral-900">{currentExercise.name}</h2>
                   {submitted && score !== null && (
-                    <div className="text-right">
-                      <Progress
-                        type="circle"
-                        percent={score}
-                        width={60}
-                        status={score >= 60 ? 'success' : 'exception'}
-                      />
-                    </div>
+                    <Progress
+                      type="circle"
+                      percent={score}
+                      size={60}
+                      status={score >= 60 ? 'success' : 'exception'}
+                    />
                   )}
                 </div>
 
-                <Divider />
+                <Separator className="mb-4" />
 
-                {currentExercise.questions.map((question, index) => {
-                  const audioUrl = (question as any).audioUrl
-                  const getAudioUrl = (url: string) => {
-                    if (url.startsWith('http')) {
-                      return url
-                    }
-                    const backendUrl = localStorage.getItem('backendUrl') || 'http://localhost:3000'
-                    return `${backendUrl}${url}`
-                  }
+                {currentExercise.questions.map((question, index) => (
+                  <ExerciseQuestionPanel
+                    key={question.id}
+                    question={{ ...question, audioUrl: (question as any).audioUrl }}
+                    index={index}
+                    userAnswer={userAnswers[question.id]}
+                    submitted={submitted}
+                    onAnswerChange={handleAnswerChange}
+                  />
+                ))}
 
-                  return (
-                    <div key={question.id} className="mb-6">
-                      <div className="flex items-start mb-2">
-                        <Text strong className="mr-2">
-                          Câu {index + 1}:
-                        </Text>
-                        <div className="flex-1">
-                          <Text>{question.question}</Text>
-                          {audioUrl && (
-                            <div className="mt-2">
-                              <audio
-                                src={getAudioUrl(audioUrl)}
-                                controls
-                                className="w-full max-w-md"
-                              >
-                                Your browser does not support the audio element.
-                              </audio>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <Radio.Group
-                        className="ml-6"
-                        onChange={(e) => handleAnswerChange(question.id, e.target.value)}
-                        value={userAnswers[question.id]}
-                        disabled={submitted}
-                      >
-                        <Space direction="vertical">
-                          {Object.entries({
-                            A: question.answerA,
-                            B: question.answerB,
-                            C: question.answerC,
-                            D: question.answerD
-                          }).map(([key, value]) => (
-                            <Radio
-                              key={key}
-                              value={key}
-                              className={
-                                submitted
-                                  ? key === getAnswerLabel(question.rightAnswer)
-                                    ? 'text-green-600 font-medium'
-                                    : userAnswers[question.id] === key
-                                      ? 'text-red-500'
-                                      : ''
-                                  : ''
-                              }
-                            >
-                              {key}. {value}
-                              {submitted && key === getAnswerLabel(question.rightAnswer) && (
-                                <CheckCircleFilled className="ml-2 text-green-600" />
-                              )}
-                            </Radio>
-                          ))}
-                        </Space>
-                      </Radio.Group>
-                    </div>
-                  )
-                })}
-
-                <Divider />
+                <Separator className="mb-4" />
 
                 <div className="flex justify-end">
                   {submitted ? (
-                    <Button type="primary" onClick={resetExercise}>
-                      Làm lại
-                    </Button>
+                    <Button onClick={resetExercise}>Làm lại</Button>
                   ) : (
                     <Button
-                      type="primary"
                       onClick={handleSubmit}
-                      loading={loading}
                       disabled={Object.keys(userAnswers).length < currentExercise.questions.length}
                     >
                       Nộp bài
@@ -399,15 +308,11 @@ const ExercisePage: React.FC = () => {
                 </div>
               </>
             ) : (
-              <div className="text-center py-12">
-                <Title level={4} className="text-gray-500">
-                  Vui lòng chọn một bài tập từ danh sách
-                </Title>
-              </div>
+              <EmptyState icon={ClipboardList} message="Vui lòng chọn một bài tập từ danh sách" />
             )}
           </Card>
-        </Col>
-      </Row>
+        </div>
+      </div>
     </div>
   )
 }

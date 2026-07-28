@@ -1,7 +1,11 @@
 import React, { useState } from 'react'
-import { Button, Image, message, Card } from 'antd'
-import { UploadOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Image } from 'antd'
+import { toast } from 'sonner'
 import dictionaryApi from '@renderer/apis/dictionary-api'
+import { resolveAssetUrl } from '@/lib/backend-url'
+import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Upload, X } from 'lucide-react'
 
 interface ImageUploadProps {
   value?: string[]
@@ -20,7 +24,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({ value = [], onChange, maxCoun
 
       if (!pickResult.success || pickResult.filePaths.length === 0) {
         if (pickResult.error) {
-          message.error(pickResult.error)
+          toast.error(pickResult.error)
         }
         return
       }
@@ -35,18 +39,18 @@ const ImageUpload: React.FC<ImageUploadProps> = ({ value = [], onChange, maxCoun
       if (uploadResult.success && uploadResult.urls.length > 0) {
         const newUrls = [...value, ...uploadResult.urls].slice(0, maxCount)
         onChange?.(newUrls)
-        message.success(`Đã tải lên ${uploadResult.urls.length} hình ảnh`)
+        toast.success(`Đã tải lên ${uploadResult.urls.length} hình ảnh`)
       } else {
         const errors = uploadResult.errors || []
         if (errors.length > 0) {
-          message.error(`Tải lên thất bại: ${errors.join(', ')}`)
+          toast.error(`Tải lên thất bại: ${errors.join(', ')}`)
         } else {
-          message.error('Tải lên thất bại')
+          toast.error('Tải lên thất bại')
         }
       }
     } catch (error) {
       console.error('Upload error:', error)
-      message.error('Có lỗi xảy ra khi tải lên hình ảnh')
+      toast.error('Có lỗi xảy ra khi tải lên hình ảnh')
     } finally {
       setUploading(false)
     }
@@ -57,72 +61,57 @@ const ImageUpload: React.FC<ImageUploadProps> = ({ value = [], onChange, maxCoun
     onChange?.(newUrls)
   }
 
-  const getImageUrl = (url: string) => {
-    // If it's already a full URL, return as is
-    if (url.startsWith('http')) {
-      return url
-    }
-    // Otherwise, construct the full URL using the backend server
-    const backendUrl = localStorage.getItem('backendUrl') || 'http://localhost:3000'
-    // Ensure URL starts with / if it doesn't already
-    const urlPath = url.startsWith('/') ? url : `/${url}`
-    const fullUrl = `${backendUrl}${urlPath}`
-    console.log('ImageUpload - Image URL construction:', { url, backendUrl, fullUrl })
-    return fullUrl
-  }
+  const getImageUrl = (url: string): string => resolveAssetUrl(url)
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium">
+        <span className="text-body-md text-neutral-900">
           Hình ảnh ({value.length}/{maxCount})
         </span>
         <Button
-          type="dashed"
-          icon={<UploadOutlined />}
+          variant="outline"
           onClick={handleUpload}
-          loading={uploading}
-          disabled={value.length >= maxCount}
+          disabled={uploading || value.length >= maxCount}
         >
+          <Upload className={uploading ? 'animate-spin' : undefined} />
           Tải lên hình ảnh
         </Button>
       </div>
 
       {value.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
           {value.map((url, index) => (
-            <Card
-              key={index}
-              size="small"
-              className="relative"
-              cover={
-                <Image
-                  src={getImageUrl(url)}
-                  alt={`Upload ${index + 1}`}
-                  className="w-full h-24 object-cover"
-                  fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMIAAADDCAYAAADQvc6UAAABRWlDQ1BJQ0MgUHJvZmlsZQAAKJFjYGASSSwoyGFhYGDIzSspCnJ3UoiIjFJgf8LAwSDCIMogwMCcmFxc4BgQ4ANUwgCjUcG3awyMIPqyLsis7PPOq3QdDFcvjV3jOD1boQVTPQrgSkktTgbSf4A4LbmgqISBgTEFyFYuLykAsTuAbJEioKOA7DkgdjqEvQHEToKwj4DVhAQ5A9k3gGyB5IxEoBmML4BsnSQk8XQkNtReEOBxcfXxUQg1Mjc0dyHgXNJBSWpFCYh2zi+oLMpMzyhRcASGUqqCZ16yno6CkYGRAQMDKMwhqj/fAIcloxgHQqxAjIHBEugw5sUIsSQpBobtQPdLciLEVJYzMPBHMDBsayhILEqEO4DxG0txmrERhM29nYGBddr//5/DGRjYNRkY/l7////39v///y4Dmn+LgeHANwDrkl1AuO+pmgAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAwqADAAQAAAABAAAAwwAAAAD9b/HnAAAHlklEQVR4Ae3dP3Ik1RnG4W+FgYxN"
-                />
-              }
-              actions={[
-                <Button
-                  key="delete"
-                  type="text"
-                  danger
-                  icon={<DeleteOutlined />}
-                  onClick={() => handleRemove(index)}
-                  size="small"
-                />
-              ]}
-            />
+            <div key={index} className="relative overflow-hidden rounded-lg border bg-card">
+              <Image
+                src={getImageUrl(url)}
+                alt={`Upload ${index + 1}`}
+                className="h-24 w-full object-cover"
+                fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMIAAADDCAYAAADQvc6UAAABRWlDQ1BJQ0MgUHJvZmlsZQAAKJFjYGASSSwoyGFhYGDIzSspCnJ3UoiIjFJgf8LAwSDCIMogwMCcmFxc4BgQ4ANUwgCjUcG3awyMIPqyLsis7PPOq3QdDFcvjV3jOD1boQVTPQrgSkktTgbSf4A4LbmgqISBgTEFyFYuLykAsTuAbJEioKOA7DkgdjqEvQHEToKwj4DVhAQ5A9k3gGyB5IxEoBmML4BsnSQk8XQkNtReEOBxcfXxUQg1Mjc0dyHgXNJBSWpFCYh2zi+oLMpMzyhRcASGUqqCZ16yno6CkYGRAQMDKMwhqj/fAIcloxgHQqxAjIHBEugw5sUIsSQpBobtQPdLciLEVJYzMPBHMDBsayhILEqEO4DxG0txmrERhM29nYGBddr//5/DGRjYNRkY/l7////39v///y4Dmn+LgeHANwDrkl1AuO+pmgAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAwqADAAQAAAABAAAAwwAAAAD9b/HnAAAHlklEQVR4Ae3dP3Ik1RnG4W+FgYxN"
+              />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => handleRemove(index)}
+                    aria-label="Xóa hình ảnh"
+                    className="absolute right-1 top-1 flex size-6 items-center justify-center rounded-full bg-white/90 text-destructive shadow-sm hover:bg-white"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Xóa hình ảnh</TooltipContent>
+              </Tooltip>
+            </div>
           ))}
         </div>
       )}
 
       {value.length === 0 && (
-        <div className="text-center py-8 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg">
-          <UploadOutlined className="text-4xl mb-2" />
-          <p>Chưa có hình ảnh nào</p>
-          <p className="text-sm">Nhấn "Tải lên hình ảnh" để thêm</p>
+        <div className="rounded-lg border-2 border-dashed border-neutral-300 py-8 text-center text-muted-foreground">
+          <Upload className="mx-auto mb-2 size-8 text-neutral-400" />
+          <p className="text-body">Chưa có hình ảnh nào</p>
+          <p className="text-small">Nhấn "Tải lên hình ảnh" để thêm</p>
         </div>
       )}
     </div>

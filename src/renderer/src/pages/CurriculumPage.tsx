@@ -1,13 +1,28 @@
 import React, { useState, useEffect } from 'react'
-import { Card, Button, Tag, Spin, Input } from 'antd'
-import { DownloadOutlined, FileTextOutlined, SearchOutlined } from '@ant-design/icons'
+import { Input } from 'antd'
+import { SearchOutlined } from '@ant-design/icons'
 import dictionaryApi, { Curriculum } from '@renderer/apis/dictionary-api'
-import { toast } from 'react-hot-toast'
+import { toast } from 'sonner'
+import { resolveAssetUrl } from '@/lib/backend-url'
+import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { EmptyState } from '@/components/states/empty-state'
+import { ErrorState, type ErrorStateVariant } from '@/components/states/error-state'
+import { GridSkeleton } from '@/components/states/loading-skeleton'
+import { classifyError } from '@/components/states/classify-error'
+import DocumentViewerDialog from '@renderer/components/document-viewer-dialog'
+import { isPreviewableMimeType } from '@/lib/utils'
+import { Download, Eye, FileText, FolderOpen } from 'lucide-react'
 
 const CurriculumPage: React.FC = () => {
   const [curriculums, setCurriculums] = useState<Curriculum[]>([])
   const [loading, setLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [errorVariant, setErrorVariant] = useState<ErrorStateVariant | null>(null)
+  const [downloadingId, setDownloadingId] = useState<number | null>(null)
+  const [viewingCurriculum, setViewingCurriculum] = useState<Curriculum | null>(null)
 
   useEffect(() => {
     loadCurriculums()
@@ -16,28 +31,34 @@ const CurriculumPage: React.FC = () => {
   const loadCurriculums = async (): Promise<void> => {
     try {
       setLoading(true)
+      setErrorVariant(null)
       const response = await dictionaryApi.getAllCurriculums({ page: 0, limit: 100 })
       setCurriculums(response.contents)
     } catch (error) {
       console.error('Error loading curriculums:', error)
       toast.error('Không thể tải danh sách giáo trình')
+      setErrorVariant(classifyError(error))
     } finally {
       setLoading(false)
     }
   }
 
-  const handleDownload = (curriculum: Curriculum): void => {
-    const backendUrl = localStorage.getItem('backendUrl') || 'http://localhost:3000'
-    const fileUrl = curriculum.fileUrl.startsWith('http')
-      ? curriculum.fileUrl
-      : `${backendUrl}${curriculum.fileUrl}`
-
-    const link = document.createElement('a')
-    link.href = fileUrl
-    link.download = curriculum.fileName
-    link.click()
-
-    toast.success('Đang tải xuống tài liệu...')
+  const handleDownload = async (curriculum: Curriculum): Promise<void> => {
+    const fileUrl = resolveAssetUrl(curriculum.fileUrl)
+    setDownloadingId(curriculum.id)
+    try {
+      const result = await window.api.saveFileToDisk(fileUrl, curriculum.fileName)
+      if (result.success) {
+        toast.success('Đã tải xuống tài liệu')
+      } else if (!result.canceled) {
+        toast.error(result.error || 'Tải xuống thất bại')
+      }
+    } catch (error) {
+      console.error('Error downloading curriculum file:', error)
+      toast.error('Tải xuống thất bại')
+    } finally {
+      setDownloadingId(null)
+    }
   }
 
   const formatFileSize = (bytes: number): string => {
@@ -48,18 +69,11 @@ const CurriculumPage: React.FC = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
-  const getFileIcon = (mimeType: string) => {
+  const getFileIcon = (mimeType: string): string => {
     if (mimeType.includes('pdf')) return '📄'
     if (mimeType.includes('word') || mimeType.includes('document')) return '📝'
     if (mimeType.includes('text')) return '📃'
     return '📁'
-  }
-
-  const getFileTypeColor = (mimeType: string) => {
-    if (mimeType.includes('pdf')) return 'red'
-    if (mimeType.includes('word') || mimeType.includes('document')) return 'blue'
-    if (mimeType.includes('text')) return 'green'
-    return 'default'
   }
 
   const getFileTypeDisplay = (mimeType: string): string => {
@@ -78,91 +92,119 @@ const CurriculumPage: React.FC = () => {
   )
 
   return (
-    <div className="p-4 bg-gray-50 min-h-screen">
-      <div className="max-w-6xl mx-auto">
-        <Card className="mb-6">
-          <div className="text-center mb-6">
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">Giáo trình</h1>
-            <p className="text-gray-600">Tài liệu học tập và tham khảo</p>
+    <div className="min-h-screen bg-neutral-50 p-6">
+      <div className="mx-auto max-w-6xl">
+        <Card className="mb-6 p-6">
+          <div className="mb-6 text-center">
+            <h1 className="text-h1 mb-2 text-neutral-900">Giáo trình</h1>
+            <p className="text-body text-muted-foreground">Tài liệu học tập và tham khảo</p>
           </div>
 
-          <div className="mb-6">
+          <div className="mb-2">
             <Input
               placeholder="Tìm kiếm giáo trình..."
               prefix={<SearchOutlined />}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               size="large"
-              className="max-w-md mx-auto"
+              className="mx-auto max-w-md"
             />
           </div>
         </Card>
 
         {loading ? (
-          <div className="text-center py-12">
-            <Spin size="large" />
-            <div className="mt-4 text-gray-600">Đang tải danh sách giáo trình...</div>
-          </div>
+          <GridSkeleton items={6} />
+        ) : errorVariant ? (
+          <Card className="py-12">
+            <ErrorState variant={errorVariant} onRetry={loadCurriculums} />
+          </Card>
+        ) : filteredCurriculums.length === 0 ? (
+          <Card className="py-12">
+            <EmptyState
+              icon={searchTerm ? FolderOpen : FileText}
+              message={searchTerm ? 'Không tìm thấy giáo trình nào' : 'Chưa có giáo trình nào'}
+              description={
+                searchTerm
+                  ? 'Thử tìm kiếm với từ khóa khác'
+                  : 'Liên hệ quản trị viên để thêm giáo trình mới'
+              }
+            />
+          </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {filteredCurriculums.map((curriculum) => (
               <Card
                 key={curriculum.id}
-                className="hover:shadow-lg transition-shadow duration-300"
-                actions={[
-                  <Button
-                    type="primary"
-                    icon={<DownloadOutlined />}
-                    onClick={() => handleDownload(curriculum)}
-                    className="w-full"
-                  >
-                    Tải xuống
-                  </Button>
-                ]}
+                className="gap-3 p-4 transition-shadow duration-300 hover:shadow-md"
               >
                 <div className="text-center">
-                  <div className="text-4xl mb-3">{getFileIcon(curriculum.mimeType)}</div>
-                  <h3 className="text-lg font-semibold mb-2 line-clamp-2">{curriculum.title}</h3>
+                  <div className="mb-3 text-4xl">{getFileIcon(curriculum.mimeType)}</div>
+                  <h3 className="text-h3 mb-2 line-clamp-2 text-neutral-900">{curriculum.title}</h3>
                   {curriculum.description && (
-                    <p className="text-gray-600 text-sm mb-3 line-clamp-3">
+                    <p className="mb-3 line-clamp-3 text-small text-muted-foreground">
                       {curriculum.description}
                     </p>
                   )}
                   <div className="space-y-2">
-                    <div className="flex items-center justify-center space-x-2">
-                      <FileTextOutlined className="text-gray-400" />
-                      <span className="text-sm text-gray-500">{curriculum.fileName}</span>
+                    <div className="flex items-center justify-center gap-2">
+                      <FileText className="size-4 text-neutral-400" />
+                      <span className="text-small text-muted-foreground">
+                        {curriculum.fileName}
+                      </span>
                     </div>
-                    <div className="flex justify-center space-x-2">
-                      <Tag color={getFileTypeColor(curriculum.mimeType)}>
-                        {getFileTypeDisplay(curriculum.mimeType)}
-                      </Tag>
-                      <Tag color="blue">{formatFileSize(curriculum.fileSize)}</Tag>
+                    <div className="flex justify-center gap-2">
+                      <Badge variant="outline">{getFileTypeDisplay(curriculum.mimeType)}</Badge>
+                      <Badge variant="secondary">{formatFileSize(curriculum.fileSize)}</Badge>
                     </div>
-                    <div className="text-xs text-gray-400">
+                    <div className="text-tiny text-neutral-400">
                       {new Date(curriculum.createdAt).toLocaleDateString('vi-VN')}
                     </div>
                   </div>
+                </div>
+                <div className="flex gap-2">
+                  {isPreviewableMimeType(curriculum.mimeType) && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => setViewingCurriculum(curriculum)}
+                        >
+                          <Eye />
+                          Xem
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Xem {curriculum.fileName} trong ứng dụng</TooltipContent>
+                    </Tooltip>
+                  )}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        className="flex-1"
+                        disabled={downloadingId === curriculum.id}
+                        onClick={() => handleDownload(curriculum)}
+                      >
+                        <Download />
+                        Tải xuống
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Tải xuống {curriculum.fileName}</TooltipContent>
+                  </Tooltip>
                 </div>
               </Card>
             ))}
           </div>
         )}
-
-        {!loading && filteredCurriculums.length === 0 && (
-          <Card className="text-center py-12">
-            <div className="text-6xl mb-4">📚</div>
-            <h3 className="text-xl font-semibold text-gray-600 mb-2">
-              {searchTerm ? 'Không tìm thấy giáo trình nào' : 'Chưa có giáo trình nào'}
-            </h3>
-            <p className="text-gray-500">
-              {searchTerm
-                ? 'Thử tìm kiếm với từ khóa khác'
-                : 'Liên hệ quản trị viên để thêm giáo trình mới'}
-            </p>
-          </Card>
-        )}
       </div>
+
+      {viewingCurriculum && (
+        <DocumentViewerDialog
+          open={!!viewingCurriculum}
+          onOpenChange={(open) => !open && setViewingCurriculum(null)}
+          fileUrl={resolveAssetUrl(viewingCurriculum.fileUrl)}
+          fileName={viewingCurriculum.fileName}
+        />
+      )}
     </div>
   )
 }

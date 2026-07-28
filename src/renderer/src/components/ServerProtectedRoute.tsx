@@ -1,8 +1,9 @@
 import React from 'react'
-import { Spin, Result, Button } from 'antd'
 import { useNavigate } from 'react-router-dom'
+import { Loader2, Settings, WifiOff } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import useServerHealth from '@renderer/hooks/useServerHealth'
-import { IoIosSettings } from 'react-icons/io'
+import ServerConfigDialog from '@renderer/components/ServerConfigDialog'
 
 interface ServerProtectedRouteProps {
   children: React.ReactNode
@@ -10,16 +11,17 @@ interface ServerProtectedRouteProps {
 }
 
 const ServerProtectedRoute: React.FC<ServerProtectedRouteProps> = ({ children }) => {
-  const { isConfigured, isHealthy, isLoading, serverIp } = useServerHealth()
+  const { isConfigured, isHealthy, isLoading } = useServerHealth()
   const navigate = useNavigate()
+  const [isConfigOpen, setIsConfigOpen] = React.useState(false)
 
   // Show loading while checking server health
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <Spin size="large" />
-          <div className="mt-4">Đang kiểm tra kết nối máy chủ...</div>
+          <Loader2 className="mx-auto animate-spin text-primary-500" size={32} />
+          <div className="mt-4 text-body text-neutral-600">Đang kiểm tra kết nối máy chủ...</div>
         </div>
       </div>
     )
@@ -28,56 +30,50 @@ const ServerProtectedRoute: React.FC<ServerProtectedRouteProps> = ({ children })
   // If server is not configured
   if (!isConfigured) {
     return (
-      <Result
-        status="warning"
-        title="Chưa cấu hình máy chủ"
-        subTitle="Vui lòng cấu hình IP máy chủ để sử dụng tính năng này"
-        extra={[
-          <Button
-            type="primary"
-            key="configure"
-            icon={<IoIosSettings />}
-            onClick={() => {
-              // You can trigger the footer settings modal here
-              // For now, just show a message
-              alert(
-                'Vui lòng cấu hình IP máy chủ trong phần cài đặt (biểu tượng bánh răng ở footer)'
-              )
-            }}
-          >
-            Cấu hình máy chủ
-          </Button>,
-          <Button key="home" onClick={() => navigate('/')}>
-            Về trang chủ
-          </Button>
-        ]}
-      />
+      <>
+        <div className="flex flex-col items-center justify-center min-h-screen gap-3 px-4 text-center">
+          <WifiOff className="text-neutral-300" size={48} />
+          <h2 className="text-h2 text-neutral-900">Chưa cấu hình máy chủ</h2>
+          <p className="text-body text-neutral-500">
+            Vui lòng cấu hình IP máy chủ để sử dụng tính năng này
+          </p>
+          <div className="mt-2 flex gap-2">
+            <Button onClick={() => setIsConfigOpen(true)}>
+              <Settings size={16} />
+              Cấu hình máy chủ
+            </Button>
+            <Button variant="outline" onClick={() => navigate('/')}>
+              Về trang chủ
+            </Button>
+          </div>
+        </div>
+        <ServerConfigDialog open={isConfigOpen} onOpenChange={setIsConfigOpen} />
+      </>
     )
   }
 
   // If server is configured but not healthy
   if (!isHealthy) {
     return (
-      <Result
-        status="error"
-        title="Không thể kết nối đến máy chủ"
-        subTitle={`Máy chủ ${serverIp}:3000 không khả dụng. Vui lòng kiểm tra lại cấu hình.`}
-        extra={[
-          <Button
-            type="primary"
-            key="configure"
-            icon={<IoIosSettings />}
-            onClick={() => {
-              alert('Vui lòng kiểm tra lại IP máy chủ trong phần cài đặt')
-            }}
-          >
-            Kiểm tra cấu hình
-          </Button>,
-          <Button key="home" onClick={() => navigate('/')}>
-            Về trang chủ
-          </Button>
-        ]}
-      />
+      <>
+        <div className="flex flex-col items-center justify-center min-h-screen gap-3 px-4 text-center">
+          <WifiOff className="text-error" size={48} />
+          <h2 className="text-h2 text-neutral-900">Không thể kết nối đến máy chủ</h2>
+          <p className="text-body text-neutral-500">
+            Không thể kết nối đến máy chủ. Kiểm tra địa chỉ IP ở cuối màn hình.
+          </p>
+          <div className="mt-2 flex gap-2">
+            <Button onClick={() => setIsConfigOpen(true)}>
+              <Settings size={16} />
+              Kiểm tra cấu hình
+            </Button>
+            <Button variant="outline" onClick={() => navigate('/')}>
+              Về trang chủ
+            </Button>
+          </div>
+        </div>
+        <ServerConfigDialog open={isConfigOpen} onOpenChange={setIsConfigOpen} />
+      </>
     )
   }
 

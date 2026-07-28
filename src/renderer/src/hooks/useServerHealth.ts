@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { toast } from 'react-hot-toast'
+import { toast } from 'sonner'
+import { getBackendBaseUrl, DEFAULT_BACKEND_URL } from '@/lib/backend-url'
 
 interface ServerHealthStatus {
   isConfigured: boolean
@@ -37,9 +38,9 @@ const useServerHealth = (): ServerHealthStatus => {
   }
 
   const validateServerAccess = async (): Promise<void> => {
-    const backendUrl = localStorage.getItem('backendUrl') || 'http://localhost:3000'
+    const backendUrl = getBackendBaseUrl()
 
-    if (!backendUrl || backendUrl === 'http://localhost:3000') {
+    if (!backendUrl || backendUrl === DEFAULT_BACKEND_URL) {
       setStatus({
         isConfigured: false,
         isHealthy: false,

@@ -1,8 +1,11 @@
 import React from 'react'
-import { Button, Form, Input } from 'antd'
+import { Form, Input } from 'antd'
 import { Link, useNavigate } from 'react-router-dom'
 import dictionaryApi from '@renderer/apis/dictionary-api'
-import { ACCESS_TOKEN_KEY } from '@renderer/constants'
+import { saveAuth } from '@/hooks/use-auth'
+import { toast } from 'sonner'
+import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 
 const RegisterPage: React.FC = () => {
   const [form] = Form.useForm()
@@ -19,7 +22,7 @@ const RegisterPage: React.FC = () => {
         username: values.username,
         password: values.password
       })
-      localStorage.setItem(ACCESS_TOKEN_KEY, JSON.stringify(response))
+      saveAuth(response)
       if (response.user.role === 'admin') {
         navigate('/admin')
       } else {
@@ -27,12 +30,13 @@ const RegisterPage: React.FC = () => {
       }
     } catch (error) {
       console.log(error)
+      toast.error('Đăng ký thất bại. Vui lòng thử lại.')
     }
   }
   return (
-    <div className="pt-28 flex justify-center items-center">
-      <div className="w-1/2 border-2 border-blue-400 rounded-lg p-4">
-        <h4 className="font-bold text-lg text-center">Đăng ký</h4>
+    <div className="flex min-h-screen items-center justify-center bg-neutral-50 p-6">
+      <Card className="w-full max-w-md p-6">
+        <h1 className="text-display mb-4 text-center text-neutral-900">Đăng ký</h1>
         <Form form={form} onFinish={handleSubmit} layout="vertical" name="login">
           <Form.Item
             name="fullName"
@@ -55,16 +59,16 @@ const RegisterPage: React.FC = () => {
           >
             <Input.Password />
           </Form.Item>
-          <Button className="mt-2 w-full" type="primary" htmlType="submit">
+          <Button className="mt-2 w-full" type="submit">
             Đăng ký
           </Button>
         </Form>
-        <div className="text-center mt-2">
-          <Link to="/login" className="cursor-pointer text-blue-600 underline">
+        <div className="mt-4 text-center text-small">
+          <Link to="/login" className="cursor-pointer text-primary-600 hover:underline">
             Có tài khoản? Đăng nhập{' '}
           </Link>
         </div>
-      </div>
+      </Card>
     </div>
   )
 }

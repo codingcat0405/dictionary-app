@@ -1,11 +1,22 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Button, Dropdown, Input, Select, Card, Tag, Space, Image } from 'antd'
+import { Dropdown, Image } from 'antd'
 import { US, VN } from 'country-flag-icons/react/1x1'
 import { useNavigate } from 'react-router-dom'
 import dictionaryApi from '@renderer/apis/dictionary-api'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import { debounce } from 'lodash'
 import { isProfane } from '@renderer/utils/badWordsFilter'
+import { resolveAssetUrl } from '@/lib/backend-url'
+import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { EmptyState } from '@/components/states/empty-state'
+import { ErrorState, type ErrorStateVariant } from '@/components/states/error-state'
+import { classifyError } from '@/components/states/classify-error'
+import { EntrySkeleton } from '@/components/states/loading-skeleton'
+import { Search, BookOpen, Volume2, Heart } from 'lucide-react'
 
 interface DictionaryResult {
   id?: number
@@ -40,6 +51,9 @@ const AdvanceDictionaryPage: React.FC = () => {
   const [savedWords, setSavedWords] = useState<SavedWord[]>([])
   const [suggestionItems, setSuggestionItems] = useState<SuggestionItem[]>([])
   const [debouncedValue, setDebouncedValue] = useState<string>('')
+  const [loading, setLoading] = useState(false)
+  const [errorVariant, setErrorVariant] = useState<ErrorStateVariant | null>(null)
+  const [notFound, setNotFound] = useState(false)
 
   // Load saved words from localStorage on component mount
   useEffect(() => {
@@ -126,55 +140,53 @@ const AdvanceDictionaryPage: React.FC = () => {
     toast.success('Đã lưu vào yêu thích')
   }
 
-  const handleFindWord = async (e: React.MouseEvent<HTMLButtonElement>): Promise<void> => {
+  /** Shared lookup path for the form submit, recents/saved click, and suggestion click —
+   *  keeps loading/error/not-found state handling consistent across all three entry points. */
+  const performLookup = async (
+    searchWord: string,
+    searchType: number,
+    saveRecent: boolean
+  ): Promise<void> => {
+    if (isProfane(searchWord.trim())) {
+      toast.error('Từ này không phù hợp để tra cứu')
+      setResult(null)
+      return
+    }
+
+    setLoading(true)
+    setErrorVariant(null)
     try {
-      e.preventDefault()
-
-      // Check for bad words
-      if (isProfane(inputValue.trim())) {
-        toast.error('Từ này không phù hợp để tra cứu')
-        setResult(null)
-        return
-      }
-
-      console.log('inputValue', inputValue)
-      console.log('type', type)
-      const resp = await dictionaryApi.findWord(inputValue, type)
-      if (!resp || !Array.isArray(resp)) {
+      const resp = await dictionaryApi.findWord(searchWord, searchType)
+      if (!resp || !Array.isArray(resp) || resp.length <= 0) {
         toast.error('Không tìm thấy từ')
         setResult(null)
-        return
-      }
-      if (resp.length <= 0) {
-        toast.error('Không tìm thấy từ')
-        setResult(null)
+        setNotFound(true)
         return
       }
       setResult(resp[0])
-      // Save to recents after successful search
-      saveToRecents(inputValue, type)
-    } catch {
+      setNotFound(false)
+      if (saveRecent) {
+        saveToRecents(searchWord, searchType)
+      }
+    } catch (error) {
       toast.error('Không tìm thấy từ')
       setResult(null)
+      setNotFound(false)
+      setErrorVariant(classifyError(error))
+    } finally {
+      setLoading(false)
     }
+  }
+
+  const handleFindWord = async (e: React.MouseEvent<HTMLButtonElement>): Promise<void> => {
+    e.preventDefault()
+    await performLookup(inputValue, type, true)
   }
 
   const handleWordClick = async (word: string, wordType: number): Promise<void> => {
     setInputValue(word)
     setType(wordType)
-
-    try {
-      const resp = await dictionaryApi.findWord(word, wordType)
-      if (resp && Array.isArray(resp) && resp.length > 0) {
-        setResult(resp[0])
-      } else {
-        toast.error('Không tìm thấy từ')
-        setResult(null)
-      }
-    } catch {
-      toast.error('Không tìm thấy từ')
-      setResult(null)
-    }
+    await performLookup(word, wordType, false)
   }
 
   const handleFavoriteClick = (): void => {
@@ -184,27 +196,17 @@ const AdvanceDictionaryPage: React.FC = () => {
   }
 
   const handleSuggestionClick = async (key: string): Promise<void> => {
-    // Check for bad words in suggestion click
     if (isProfane(key)) {
       toast.error('Từ này không phù hợp để tra cứu')
       return
     }
-
     setInputValue(key)
     setResult(null)
-    try {
-      const resp = await dictionaryApi.findWord(key, type)
-      if (resp && Array.isArray(resp) && resp.length > 0) {
-        setResult(resp[0])
-        saveToRecents(key, type)
-      } else {
-        toast.error('Không tìm thấy từ')
-        setResult(null)
-      }
-    } catch {
-      toast.error('Không tìm thấy từ')
-      setResult(null)
-    }
+    await performLookup(key, type, true)
+  }
+
+  const handleRetry = (): void => {
+    performLookup(inputValue, type, false)
   }
 
   const handleSpeak = (): void => {
@@ -219,7 +221,6 @@ const AdvanceDictionaryPage: React.FC = () => {
     if (!imagesJson) return []
     try {
       const urls = JSON.parse(imagesJson)
-      console.log('Parsed image URLs from database:', urls)
       return Array.isArray(urls) ? urls : []
     } catch (error) {
       console.error('Error parsing images:', error)
@@ -227,101 +228,220 @@ const AdvanceDictionaryPage: React.FC = () => {
     }
   }
 
-  const getImageUrl = (url: string): string => {
-    // If it's already a full URL, return as is
-    if (url.startsWith('http')) {
-      return url
+  const getImageUrl = (url: string): string => resolveAssetUrl(url)
+
+  const renderResultPanel = (): React.ReactNode => {
+    if (loading) {
+      return <EntrySkeleton />
     }
-    // Otherwise, construct the full URL using the backend server
-    const backendUrl = localStorage.getItem('backendUrl') || 'http://localhost:3000'
-    const fullUrl = `${backendUrl}${url}`
-    console.log('Image URL construction:', { url, backendUrl, fullUrl })
-    return fullUrl
-  }
-
-  return (
-    <div className="mt-4">
-      <div className="container mx-auto flex gap-2">
-        <div className="w-1/3">
-          <form className="bg-white rounded-lg shadow-md p-2 self-start">
-            <div className="text-center font-bold text-lg mb-2">Tra từ chuyên ngành</div>
-            <Dropdown
-              trigger={['click']}
-              menu={{
-                items: suggestionItems as any,
-                onClick: ({ key }) => handleSuggestionClick(key)
-              }}
-              open={suggestionItems.length > 0}
-            >
-              <Input
-                placeholder="Nhập từ cần tra cứu"
-                value={inputValue}
-                onChange={(e) => {
-                  setInputValue(e.target.value)
-                  debouncedSearch(e.target.value)
-                }}
-              />
-            </Dropdown>
-
-            <div className="flex items-center gap-2 mt-2">
-              <Button
-                type="primary"
-                htmlType="submit"
-                className="w-2/3"
-                block
-                onClick={handleFindWord}
-              >
-                Tra từ
-              </Button>
-              <Select
-                style={{ width: 'calc(1/3 * 100%)' }}
-                defaultValue="0"
-                onChange={(value) => {
-                  setType(Number(value))
-                  setSuggestionItems([])
-                  setResult(null)
-                }}
-              >
-                <Select.Option value="0">
-                  <US />
-                </Select.Option>
-                <Select.Option value="1">
-                  <VN />
-                </Select.Option>
-              </Select>
+    if (errorVariant) {
+      return <ErrorState variant={errorVariant} onRetry={handleRetry} />
+    }
+    if (result) {
+      return (
+        <Card className="gap-4 p-4">
+          {/* Word Header */}
+          <div className="border-b pb-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-h1 text-primary-600">{result.word || 'N/A'}</h1>
+                <p className="text-body text-muted-foreground italic">
+                  /{result.pronunciation || 'N/A'}/
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant={type === 0 ? 'default' : 'secondary'}>
+                  {type === 0 ? 'Anh → Việt' : 'Việt → Anh'}
+                </Badge>
+                {result.id && <Badge variant="outline">ID: {result.id}</Badge>}
+              </div>
             </div>
-            <div className="mt-3">
-              Từ đã tra:
-              <div className="flex items-center flex-wrap gap-2">
-                {recentWords.map((word, index) => (
-                  <div
-                    key={index}
-                    onClick={() => handleWordClick(word.word, word.type)}
-                    className="text-blue-600 cursor-pointer hover:underline text-sm"
-                  >
-                    {word.word}
+          </div>
+
+          {/* Definition */}
+          {result.definition && (
+            <div className="space-y-2">
+              <h3 className="text-h3 text-neutral-800">Định nghĩa:</h3>
+              <div className="rounded-lg bg-neutral-50 p-4">
+                <div
+                  className="prose prose-sm max-w-none text-neutral-800"
+                  dangerouslySetInnerHTML={{ __html: result.definition }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Images */}
+          {result.images && getImageUrls(result.images).length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-h3 text-neutral-800">Hình ảnh:</h3>
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+                {getImageUrls(result.images).map((imageUrl, index) => (
+                  <div key={index} className="relative">
+                    <Image
+                      src={getImageUrl(imageUrl)}
+                      alt={`${result.word} - Image ${index + 1}`}
+                      className="h-32 w-full rounded-lg object-cover shadow-sm"
+                      onError={(e) => {
+                        console.error('Failed to load image:', getImageUrl(imageUrl), e)
+                      }}
+                      preview={{
+                        mask: 'Xem ảnh'
+                      }}
+                    />
                   </div>
                 ))}
               </div>
             </div>
-          </form>
-          <div className="bg-white rounded-lg shadow-md p-2 self-start mt-5">
-            <div className="text-center font-bold text-lg mb-2">Từ yêu thích</div>
-            <div className="flex items-center flex-wrap gap-2">
+          )}
+
+          {/* Additional Info */}
+          {result.createdAt && (
+            <div className="flex justify-between border-t pt-4 text-small text-muted-foreground">
+              <span>Tạo lúc:</span>
+              <span>{new Date(result.createdAt).toLocaleString('vi-VN')}</span>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex gap-2 border-t pt-4">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button onClick={handleSpeak} aria-label="Phát âm">
+                  <Volume2 />
+                  Phát âm
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Phát âm từ này</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" onClick={handleFavoriteClick} aria-label="Yêu thích">
+                  <Heart />
+                  Yêu thích
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Lưu vào danh sách yêu thích</TooltipContent>
+            </Tooltip>
+          </div>
+        </Card>
+      )
+    }
+    if (notFound) {
+      return <EmptyState icon={Search} message="Không tìm thấy kết quả" />
+    }
+    return (
+      <EmptyState
+        icon={BookOpen}
+        message="Nhập từ để tra cứu"
+        description="Ví dụ: hello, world, ..."
+      />
+    )
+  }
+
+  return (
+    <div className="p-6">
+      <h1 className="text-h1 mb-4 text-neutral-900">Tra từ chuyên ngành</h1>
+      <div className="container mx-auto flex gap-4">
+        <div className="w-1/3 space-y-4">
+          <Card className="gap-2 p-4">
+            <form className="space-y-2">
+              <div className="text-center text-h3 text-neutral-900">Tra từ chuyên ngành</div>
+              <Dropdown
+                trigger={['click']}
+                menu={{
+                  items: suggestionItems as any,
+                  onClick: ({ key }) => handleSuggestionClick(key)
+                }}
+                open={suggestionItems.length > 0}
+              >
+                <Input
+                  placeholder="Nhập từ cần tra cứu"
+                  value={inputValue}
+                  onChange={(e) => {
+                    setInputValue(e.target.value)
+                    debouncedSearch(e.target.value)
+                  }}
+                />
+              </Dropdown>
+
+              <div className="flex items-center gap-2">
+                <Button type="submit" className="flex-1" onClick={handleFindWord}>
+                  Tra từ
+                </Button>
+                <div className="inline-flex overflow-hidden rounded-md border">
+                  <button
+                    type="button"
+                    aria-label="Anh - Việt"
+                    onClick={() => {
+                      setType(0)
+                      setSuggestionItems([])
+                      setResult(null)
+                      setNotFound(false)
+                    }}
+                    className={`flex h-9 w-10 items-center justify-center transition-colors ${
+                      type === 0 ? 'bg-primary-50' : 'bg-transparent hover:bg-neutral-100'
+                    }`}
+                  >
+                    <US className="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Việt - Anh"
+                    onClick={() => {
+                      setType(1)
+                      setSuggestionItems([])
+                      setResult(null)
+                      setNotFound(false)
+                    }}
+                    className={`flex h-9 w-10 items-center justify-center border-l transition-colors ${
+                      type === 1 ? 'bg-primary-50' : 'bg-transparent hover:bg-neutral-100'
+                    }`}
+                  >
+                    <VN className="size-4" />
+                  </button>
+                </div>
+              </div>
+              <div className="pt-1">
+                <p className="text-small text-muted-foreground">Từ đã tra:</p>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  {recentWords.length === 0 && (
+                    <span className="text-small text-neutral-400">Chưa có</span>
+                  )}
+                  {recentWords.map((word, index) => (
+                    <Badge
+                      key={index}
+                      variant="secondary"
+                      className="cursor-pointer hover:bg-primary-100"
+                      onClick={() => handleWordClick(word.word, word.type)}
+                    >
+                      {word.word}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </form>
+          </Card>
+          <Card className="gap-2 p-4">
+            <div className="text-center text-h3 text-neutral-900">Từ yêu thích</div>
+            <div className="flex flex-wrap items-center gap-2">
+              {savedWords.length === 0 && (
+                <span className="text-small text-neutral-400">Chưa có từ yêu thích</span>
+              )}
               {savedWords.map((word, index) => (
-                <div
+                <Badge
                   key={index}
+                  variant="secondary"
+                  className="cursor-pointer hover:bg-primary-100"
                   onClick={() => handleWordClick(word.word, word.type)}
-                  className="text-blue-600 cursor-pointer hover:underline text-sm"
                 >
                   {word.word}
-                </div>
+                </Badge>
               ))}
             </div>
-          </div>
+          </Card>
           <Button
-            type="primary"
-            className="w-full mt-5"
+            className="w-full"
             onClick={() => {
               navigate('/')
             }}
@@ -330,101 +450,7 @@ const AdvanceDictionaryPage: React.FC = () => {
           </Button>
         </div>
 
-        <div className="w-2/3">
-          {result ? (
-            <Card className="shadow-md">
-              <div className="space-y-4">
-                {/* Word Header */}
-                <div className="border-b pb-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h1 className="text-3xl font-bold text-blue-600 mb-2">
-                        {result.word || 'N/A'}
-                      </h1>
-                      <p className="text-lg text-gray-600 italic">
-                        /{result.pronunciation || 'N/A'}/
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Tag color={type === 0 ? 'blue' : 'green'}>
-                        {type === 0 ? 'Anh → Việt' : 'Việt → Anh'}
-                      </Tag>
-                      {result.id && <Tag color="orange">ID: {result.id}</Tag>}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Definition */}
-                {result.definition && (
-                  <div className="space-y-3">
-                    <h3 className="text-xl font-semibold text-gray-800">Định nghĩa:</h3>
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <div
-                        className="text-gray-700 leading-relaxed"
-                        dangerouslySetInnerHTML={{ __html: result.definition }}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Images */}
-                {result.images && getImageUrls(result.images).length > 0 && (
-                  <div className="space-y-3">
-                    <h3 className="text-xl font-semibold text-gray-800">Hình ảnh:</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                      {getImageUrls(result.images).map((imageUrl, index) => (
-                        <div key={index} className="relative">
-                          <Image
-                            src={getImageUrl(imageUrl)}
-                            alt={`${result.word} - Image ${index + 1}`}
-                            className="w-full h-32 object-cover rounded-lg shadow-sm"
-                            onLoad={() => {
-                              console.log('Image loaded successfully:', getImageUrl(imageUrl))
-                            }}
-                            onError={(e) => {
-                              console.error('Image load error:', e)
-                              console.error('Failed to load image:', getImageUrl(imageUrl))
-                            }}
-                            preview={{
-                              mask: 'Xem ảnh'
-                            }}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Additional Info */}
-                <div className="border-t pt-4">
-                  <Space direction="vertical" className="w-full">
-                    {result.createdAt && (
-                      <div className="flex justify-between text-sm text-gray-500">
-                        <span>Tạo lúc:</span>
-                        <span>{new Date(result.createdAt).toLocaleString('vi-VN')}</span>
-                      </div>
-                    )}
-                  </Space>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex gap-2 pt-4 border-t">
-                  <Button type="primary" icon={<span>🔊</span>} onClick={handleSpeak}>
-                    Phát âm
-                  </Button>
-                  <Button icon={<span>❤️</span>} onClick={handleFavoriteClick}>
-                    Yêu thích
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          ) : (
-            <div className="text-center">
-              <h4 className="text-lg font-bold">Nhập từ cần tra cứu</h4>
-              <p className="text-gray-500">Ví dụ: hello, world, ...</p>
-            </div>
-          )}
-        </div>
+        <div className="w-2/3">{renderResultPanel()}</div>
       </div>
     </div>
   )

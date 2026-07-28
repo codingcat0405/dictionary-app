@@ -1,21 +1,32 @@
 import React, { useState, useEffect } from 'react'
-import { Table, Button, Modal, Space, Popconfirm, Card, Tag } from 'antd'
+import { Table, Button, Modal, Space, Card } from 'antd'
 import {
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
   DownloadOutlined,
+  EyeOutlined,
   FileTextOutlined
 } from '@ant-design/icons'
 import dictionaryApi, { Curriculum } from '@renderer/apis/dictionary-api'
-import { toast } from 'react-hot-toast'
+import { toast } from 'sonner'
 import CurriculumUpload from '@renderer/components/CurriculumUpload'
+import { resolveAssetUrl } from '@/lib/backend-url'
+import { Badge } from '@/components/ui/badge'
+import ConfirmDeleteDialog from '@renderer/components/confirm-delete-dialog'
+import { EmptyState } from '@/components/states/empty-state'
+import DocumentViewerDialog from '@renderer/components/document-viewer-dialog'
+import { isPreviewableMimeType } from '@/lib/utils'
+import { FolderOpen } from 'lucide-react'
 
 const CurriculumTab: React.FC = () => {
   const [curriculums, setCurriculums] = useState<Curriculum[]>([])
   const [loading, setLoading] = useState(false)
   const [uploadModalVisible, setUploadModalVisible] = useState(false)
   const [editingCurriculum, setEditingCurriculum] = useState<Curriculum | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Curriculum | null>(null)
+  const [downloadingId, setDownloadingId] = useState<number | null>(null)
+  const [viewingCurriculum, setViewingCurriculum] = useState<Curriculum | null>(null)
 
   useEffect(() => {
     loadCurriculums()
@@ -76,19 +87,27 @@ const CurriculumTab: React.FC = () => {
     } catch (error) {
       console.error('Error deleting curriculum:', error)
       toast.error('Xóa giáo trình thất bại')
+    } finally {
+      setDeleteTarget(null)
     }
   }
 
-  const handleDownload = (curriculum: Curriculum): void => {
-    const backendUrl = localStorage.getItem('backendUrl') || 'http://localhost:3000'
-    const fileUrl = curriculum.fileUrl.startsWith('http')
-      ? curriculum.fileUrl
-      : `${backendUrl}${curriculum.fileUrl}`
-
-    const link = document.createElement('a')
-    link.href = fileUrl
-    link.download = curriculum.fileName
-    link.click()
+  const handleDownload = async (curriculum: Curriculum): Promise<void> => {
+    const fileUrl = resolveAssetUrl(curriculum.fileUrl)
+    setDownloadingId(curriculum.id)
+    try {
+      const result = await window.api.saveFileToDisk(fileUrl, curriculum.fileName)
+      if (result.success) {
+        toast.success('Đã tải xuống tài liệu')
+      } else if (!result.canceled) {
+        toast.error(result.error || 'Tải xuống thất bại')
+      }
+    } catch (error) {
+      console.error('Error downloading curriculum file:', error)
+      toast.error('Tải xuống thất bại')
+    } finally {
+      setDownloadingId(null)
+    }
   }
 
   const formatFileSize = (bytes: number): string => {
@@ -146,16 +165,13 @@ const CurriculumTab: React.FC = () => {
       title: 'Kích thước',
       dataIndex: 'fileSize',
       key: 'fileSize',
-      render: (size: number) => <Tag color="blue">{formatFileSize(size)}</Tag>
+      render: (size: number) => <Badge variant="secondary">{formatFileSize(size)}</Badge>
     },
     {
       title: 'Loại file',
       dataIndex: 'mimeType',
       key: 'mimeType',
-      render: (mimeType: string) => {
-        const type = getFileTypeDisplay(mimeType)
-        return <Tag color="green">{type}</Tag>
-      }
+      render: (mimeType: string) => <Badge variant="outline">{getFileTypeDisplay(mimeType)}</Badge>
     },
     {
       title: 'Ngày tạo',
@@ -168,9 +184,20 @@ const CurriculumTab: React.FC = () => {
       key: 'actions',
       render: (_, record: Curriculum) => (
         <Space>
+          {isPreviewableMimeType(record.mimeType) && (
+            <Button
+              type="link"
+              icon={<EyeOutlined />}
+              onClick={() => setViewingCurriculum(record)}
+              size="small"
+            >
+              Xem
+            </Button>
+          )}
           <Button
             type="link"
             icon={<DownloadOutlined />}
+            loading={downloadingId === record.id}
             onClick={() => handleDownload(record)}
             size="small"
           >
@@ -184,26 +211,25 @@ const CurriculumTab: React.FC = () => {
           >
             Sửa
           </Button>
-          <Popconfirm
-            title="Bạn có chắc chắn muốn xóa giáo trình này?"
-            onConfirm={() => handleDelete(record.id)}
-            okText="Xóa"
-            cancelText="Hủy"
+          <Button
+            type="link"
+            danger
+            icon={<DeleteOutlined />}
+            size="small"
+            onClick={() => setDeleteTarget(record)}
           >
-            <Button type="link" danger icon={<DeleteOutlined />} size="small">
-              Xóa
-            </Button>
-          </Popconfirm>
+            Xóa
+          </Button>
         </Space>
       )
     }
   ]
 
   return (
-    <div className="p-4">
+    <div>
+      <h1 className="mb-4 text-h1 text-neutral-900">Quản lý Giáo trình</h1>
       <Card>
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Quản lý Giáo trình</h2>
+        <div className="flex justify-end items-center mb-4">
           <Button
             type="primary"
             icon={<PlusOutlined />}
@@ -221,6 +247,9 @@ const CurriculumTab: React.FC = () => {
           dataSource={curriculums}
           rowKey="id"
           loading={loading}
+          locale={{
+            emptyText: <EmptyState icon={FolderOpen} message="Chưa có giáo trình nào" />
+          }}
           pagination={{
             pageSize: 10,
             showSizeChanger: true,
@@ -248,6 +277,20 @@ const CurriculumTab: React.FC = () => {
           }}
         />
       </Modal>
+      <ConfirmDeleteDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        itemName={deleteTarget?.title ?? ''}
+        onConfirm={() => deleteTarget && handleDelete(deleteTarget.id)}
+      />
+      {viewingCurriculum && (
+        <DocumentViewerDialog
+          open={!!viewingCurriculum}
+          onOpenChange={(open) => !open && setViewingCurriculum(null)}
+          fileUrl={resolveAssetUrl(viewingCurriculum.fileUrl)}
+          fileName={viewingCurriculum.fileName}
+        />
+      )}
     </div>
   )
 }

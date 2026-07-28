@@ -19,6 +19,7 @@ const uploadClient = axios.create({
 // Function to update base URL when server IP changes
 export const updateApiBaseUrl = (): void => {
   axiosClient.defaults.baseURL = getApiUrl()
+  uploadClient.defaults.baseURL = getApiUrl()
 }
 
 //add token to header

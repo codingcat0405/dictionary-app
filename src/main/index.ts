@@ -195,6 +195,43 @@ app.whenReady().then(() => {
     }
   })
 
+  // Save a remote file to disk via a native Save dialog, instead of navigating
+  // the app window to the file's URL (which would hijack the whole Electron
+  // window into Chromium's built-in PDF viewer with no way back).
+  ipcMain.handle(
+    'save-file-to-disk',
+    async (
+      _,
+      { url, suggestedFileName }: { url: string; suggestedFileName: string }
+    ): Promise<{ success: boolean; canceled?: boolean; filePath?: string; error?: string }> => {
+      try {
+        const result = await dialog.showSaveDialog({
+          defaultPath: suggestedFileName,
+          properties: ['createDirectory']
+        })
+
+        if (result.canceled || !result.filePath) {
+          return { success: false, canceled: true }
+        }
+
+        const response = await fetch(url)
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`)
+        }
+        const arrayBuffer = await response.arrayBuffer()
+        fs.writeFileSync(result.filePath, Buffer.from(arrayBuffer))
+
+        return { success: true, filePath: result.filePath }
+      } catch (error) {
+        console.error('Error in save-file-to-disk:', error)
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }
+      }
+    }
+  )
+
   ipcMain.handle(
     'choose-file',
     async (): Promise<{

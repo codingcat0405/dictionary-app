@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react'
-import { Button, message, Card } from 'antd'
-import {
-  UploadOutlined,
-  DeleteOutlined,
-  PlayCircleOutlined,
-  PauseCircleOutlined
-} from '@ant-design/icons'
+import { toast } from 'sonner'
 import dictionaryApi from '@renderer/apis/dictionary-api'
+import { resolveAssetUrl } from '@/lib/backend-url'
+import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Play, Pause, Trash2, Upload } from 'lucide-react'
 
 interface AudioUploadProps {
   value?: string // Audio URL
@@ -22,15 +20,7 @@ const AudioUpload: React.FC<AudioUploadProps> = ({ value, onChange }) => {
     setAudioUrl(value || null)
   }, [value])
 
-  const getAudioUrl = (url: string) => {
-    // If it's already a full URL, return as is
-    if (url.startsWith('http')) {
-      return url
-    }
-    // Otherwise, construct the full URL using the backend server
-    const backendUrl = localStorage.getItem('backendUrl') || 'http://localhost:3000'
-    return `${backendUrl}${url}`
-  }
+  const getAudioUrl = (url: string): string => resolveAssetUrl(url)
 
   const handleUpload = async (): Promise<void> => {
     try {
@@ -39,7 +29,7 @@ const AudioUpload: React.FC<AudioUploadProps> = ({ value, onChange }) => {
 
       if (!pickResult.success || !pickResult.filePath) {
         if (pickResult.error) {
-          message.error(pickResult.error)
+          toast.error(pickResult.error)
         }
         return
       }
@@ -54,13 +44,13 @@ const AudioUpload: React.FC<AudioUploadProps> = ({ value, onChange }) => {
       if (uploadResult.success && uploadResult.url) {
         setAudioUrl(uploadResult.url)
         onChange?.(uploadResult.url)
-        message.success('Audio uploaded successfully.')
+        toast.success('Audio uploaded successfully.')
       } else {
-        message.error('Upload failed')
+        toast.error('Upload failed')
       }
     } catch (error) {
       console.error('Error uploading audio:', error)
-      message.error('Failed to upload audio.')
+      toast.error('Failed to upload audio.')
     }
   }
 
@@ -71,7 +61,7 @@ const AudioUpload: React.FC<AudioUploadProps> = ({ value, onChange }) => {
       audioElement.pause()
       setIsPlaying(false)
     }
-    message.success('Audio removed.')
+    toast.success('Audio removed.')
   }
 
   const handlePlayPause = (): void => {
@@ -89,7 +79,7 @@ const AudioUpload: React.FC<AudioUploadProps> = ({ value, onChange }) => {
       const audio = new Audio(getAudioUrl(audioUrl))
       audio.onended = () => setIsPlaying(false)
       audio.onerror = () => {
-        message.error('Failed to play audio')
+        toast.error('Failed to play audio')
         setIsPlaying(false)
       }
       setAudioElement(audio)
@@ -99,64 +89,54 @@ const AudioUpload: React.FC<AudioUploadProps> = ({ value, onChange }) => {
   }
 
   return (
-    <Card className="audio-upload-card">
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium">Audio Question</span>
-          <div className="flex gap-2">
-            {audioUrl && (
-              <>
-                <Button
-                  type="primary"
-                  icon={isPlaying ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
-                  onClick={handlePlayPause}
-                  size="small"
-                >
-                  {isPlaying ? 'Pause' : 'Play'}
-                </Button>
-                <Button
-                  type="primary"
-                  danger
-                  icon={<DeleteOutlined />}
-                  size="small"
-                  onClick={handleRemove}
-                >
-                  Remove
-                </Button>
-              </>
-            )}
-            {!audioUrl && (
-              <Button type="dashed" onClick={handleUpload} icon={<UploadOutlined />} size="small">
-                Upload Audio
+    <Card className="gap-3 p-4">
+      <div className="flex items-center justify-between">
+        <span className="text-body-md text-neutral-900">Audio Question</span>
+        <div className="flex gap-2">
+          {audioUrl && (
+            <>
+              <Button size="sm" onClick={handlePlayPause}>
+                {isPlaying ? <Pause /> : <Play />}
+                {isPlaying ? 'Pause' : 'Play'}
               </Button>
-            )}
-          </div>
+              <Button size="sm" variant="destructive" onClick={handleRemove}>
+                <Trash2 />
+                Remove
+              </Button>
+            </>
+          )}
+          {!audioUrl && (
+            <Button size="sm" variant="outline" onClick={handleUpload}>
+              <Upload />
+              Upload Audio
+            </Button>
+          )}
         </div>
-
-        {audioUrl && (
-          <div className="bg-gray-50 p-3 rounded-lg">
-            <div className="text-sm text-gray-600">
-              <strong>Audio file:</strong> {audioUrl.split('/').pop()}
-            </div>
-            <audio
-              src={getAudioUrl(audioUrl)}
-              controls
-              className="w-full mt-2"
-              onPlay={() => setIsPlaying(true)}
-              onPause={() => setIsPlaying(false)}
-              onEnded={() => setIsPlaying(false)}
-            >
-              Your browser does not support the audio element.
-            </audio>
-          </div>
-        )}
-
-        {!audioUrl && (
-          <div className="text-center py-4 text-gray-500">
-            No audio file uploaded. Click "Upload Audio" to add an audio question.
-          </div>
-        )}
       </div>
+
+      {audioUrl && (
+        <div className="rounded-lg bg-neutral-50 p-3">
+          <div className="text-small text-muted-foreground">
+            <strong>Audio file:</strong> {audioUrl.split('/').pop()}
+          </div>
+          <audio
+            src={getAudioUrl(audioUrl)}
+            controls
+            className="mt-2 w-full"
+            onPlay={() => setIsPlaying(true)}
+            onPause={() => setIsPlaying(false)}
+            onEnded={() => setIsPlaying(false)}
+          >
+            Your browser does not support the audio element.
+          </audio>
+        </div>
+      )}
+
+      {!audioUrl && (
+        <div className="py-4 text-center text-small text-muted-foreground">
+          No audio file uploaded. Click "Upload Audio" to add an audio question.
+        </div>
+      )}
     </Card>
   )
 }

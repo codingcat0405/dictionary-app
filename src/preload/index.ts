@@ -8,7 +8,9 @@ const api = {
   pickImages: () => ipcRenderer.invoke('pick-images'),
   pickAudio: () => ipcRenderer.invoke('pick-audio'),
   pickDocument: () => ipcRenderer.invoke('pick-document'),
-  readFile: (filePath: string) => ipcRenderer.invoke('read-file', filePath)
+  readFile: (filePath: string) => ipcRenderer.invoke('read-file', filePath),
+  saveFileToDisk: (url: string, suggestedFileName: string) =>
+    ipcRenderer.invoke('save-file-to-disk', { url, suggestedFileName })
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

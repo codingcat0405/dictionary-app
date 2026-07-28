@@ -1,8 +1,7 @@
+import { getBackendBaseUrl } from '@/lib/backend-url'
+
 export const ACCESS_TOKEN_KEY = 'access_token'
 
 export const getApiUrl = (): string => {
-  const backendUrl = localStorage.getItem('backendUrl') || 'http://localhost:3000'
-  return `${backendUrl}/api`
+  return `${getBackendBaseUrl()}/api`
 }
-
-export const API_URL = getApiUrl()

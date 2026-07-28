@@ -1,70 +1,33 @@
 import React from 'react'
-import { Button, Dropdown, Image, MenuProps, Space } from 'antd'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
-import { DownOutlined } from '@ant-design/icons'
-import { ACCESS_TOKEN_KEY } from '@renderer/constants'
+import { ChevronDown } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
+import { useAuth } from '@/hooks/use-auth'
+import { getInitials } from '@/lib/utils'
 import logo from '../assets/logo.png'
+
 const Header: React.FC = () => {
   const navigate = useNavigate()
   const { pathname } = useLocation()
+  const { user, isAuthenticated, isAdmin, logout } = useAuth()
+  const isAdminRoute = pathname.startsWith('/admin')
 
-  const items: MenuProps['items'] = [
-    {
-      key: '1',
-      label: <Link to="/">Trang chủ</Link>
-    },
-    {
-      key: '2',
-      label: <Link to="/admin">Quản trị</Link>
-    },
-    {
-      key: '3',
-      label: (
-        <div
-          onClick={() => {
-            localStorage.removeItem(ACCESS_TOKEN_KEY)
-            navigate('/')
-          }}
-        >
-          Đăng xuất
-        </div>
-      )
-    }
-  ]
+  const handleLogout = (): void => {
+    logout()
+    navigate('/')
+  }
 
-  const itemsUser: MenuProps['items'] = [
-    {
-      key: '1',
-      label: <Link to="/">Trang chủ</Link>
-    },
-    {
-      key: '2',
-      label: <Link to="/exercise">Bài tập</Link>
-    },
-    {
-      key: '3',
-      label: <Link to="/curriculum">Giáo trình</Link>
-    },
-    {
-      key: '4',
-      label: (
-        <div
-          onClick={() => {
-            localStorage.removeItem(ACCESS_TOKEN_KEY)
-            navigate('/')
-          }}
-        >
-          Đăng xuất
-        </div>
-      )
-    }
-  ]
-  const userString = localStorage.getItem(ACCESS_TOKEN_KEY) ?? '{}'
-  const { user } = JSON.parse(userString)
   return (
-    <div className="flex items-center justify-between px-8 bg-blue-400">
-      <div onClick={() => navigate('/')} className="cursor-pointer">
-        <Image src={logo} preview={false} width={70} />
+    <div className="flex items-center justify-between px-8 bg-primary-600">
+      <div onClick={() => navigate('/')} className="cursor-pointer py-2">
+        <img src={logo} alt="Logo" width={56} height={56} className="block" />
       </div>
       <div className="text-center text-white">
         <p className="font-bold text-xl">COLLEGE OF CRYPTOGRAPHY TECHNIQUES</p>
@@ -72,17 +35,47 @@ const Header: React.FC = () => {
       </div>
       <div>
         {pathname !== '/login' &&
-          (user ? (
-            <Dropdown menu={{ items: user.role === 'admin' ? items : itemsUser }}>
-              <a onClick={(e) => e.preventDefault()}>
-                <Space>
+          !isAdminRoute &&
+          (isAuthenticated ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-2 text-white cursor-pointer">
+                  <Avatar size="sm">
+                    <AvatarFallback className="bg-primary-800 text-white">
+                      {getInitials(user?.fullName)}
+                    </AvatarFallback>
+                  </Avatar>
                   {user?.fullName ?? ''}
-                  <DownOutlined />
-                </Space>
-              </a>
-            </Dropdown>
+                  <ChevronDown size={16} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link to="/">Trang chủ</Link>
+                </DropdownMenuItem>
+                {isAdmin ? (
+                  <DropdownMenuItem asChild>
+                    <Link to="/admin">Quản trị</Link>
+                  </DropdownMenuItem>
+                ) : (
+                  <>
+                    <DropdownMenuItem asChild>
+                      <Link to="/exercise">Bài tập</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to="/curriculum">Giáo trình</Link>
+                    </DropdownMenuItem>
+                  </>
+                )}
+                <DropdownMenuItem variant="destructive" onClick={handleLogout}>
+                  Đăng xuất
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : (
-            <Button onClick={() => navigate('/login')}>Đăng nhập</Button>
+            <Button variant="secondary" onClick={() => navigate('/login')}>
+              Đăng nhập
+            </Button>
           ))}
       </div>
     </div>

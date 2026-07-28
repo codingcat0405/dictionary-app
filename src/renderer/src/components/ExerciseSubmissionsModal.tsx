@@ -1,9 +1,12 @@
 import React from 'react'
-import { Modal, Table, Tag, Progress } from 'antd'
+import { Modal, Table, Progress } from 'antd'
 import { useQuery } from '@tanstack/react-query'
 import dictionaryApi from '@renderer/apis/dictionary-api'
 import moment from 'moment'
 import { UserOutlined, TrophyOutlined, ClockCircleOutlined } from '@ant-design/icons'
+import { Badge } from '@/components/ui/badge'
+import { EmptyState } from '@/components/states/empty-state'
+import { Users } from 'lucide-react'
 
 interface ExerciseSubmissionsModalProps {
   exerciseId: number | null
@@ -30,8 +33,8 @@ const ExerciseSubmissionsModal: React.FC<ExerciseSubmissionsModalProps> = ({
       dataIndex: 'user',
       key: 'user',
       render: (user: any) => (
-        <div className="flex items-center">
-          <UserOutlined className="mr-2" />
+        <div className="flex items-center text-body">
+          <UserOutlined className="mr-2 text-neutral-500" />
           <span>{user?.fullName || user?.username || 'Unknown'}</span>
         </div>
       )
@@ -45,8 +48,8 @@ const ExerciseSubmissionsModal: React.FC<ExerciseSubmissionsModalProps> = ({
         const percentage = Math.round((score / totalQuestions) * 100)
         return (
           <div className="flex items-center">
-            <TrophyOutlined className="mr-2 text-yellow-500" />
-            <span className="font-semibold">
+            <TrophyOutlined className="mr-2 text-warning" />
+            <span className="text-body-md">
               {score}/{totalQuestions}
             </span>
             <Progress
@@ -64,8 +67,8 @@ const ExerciseSubmissionsModal: React.FC<ExerciseSubmissionsModalProps> = ({
       dataIndex: 'createdAt',
       key: 'createdAt',
       render: (date: string) => (
-        <div className="flex items-center">
-          <ClockCircleOutlined className="mr-2" />
+        <div className="flex items-center text-body">
+          <ClockCircleOutlined className="mr-2 text-neutral-500" />
           <span>{moment(date).format('DD/MM/YYYY HH:mm')}</span>
         </div>
       )
@@ -78,11 +81,11 @@ const ExerciseSubmissionsModal: React.FC<ExerciseSubmissionsModalProps> = ({
         const percentage = Math.round((record.score / totalQuestions) * 100)
 
         if (percentage >= 80) {
-          return <Tag color="green">Xuất sắc</Tag>
+          return <Badge className="bg-success">Xuất sắc</Badge>
         } else if (percentage >= 60) {
-          return <Tag color="blue">Đạt</Tag>
+          return <Badge variant="default">Đạt</Badge>
         } else {
-          return <Tag color="red">Chưa đạt</Tag>
+          return <Badge variant="destructive">Chưa đạt</Badge>
         }
       }
     }
@@ -104,14 +107,14 @@ const ExerciseSubmissionsModal: React.FC<ExerciseSubmissionsModalProps> = ({
       footer={null}
     >
       <div className="mb-4">
-        <div className="flex justify-between items-center mb-2">
-          <span className="text-gray-600">
+        <div className="mb-2 flex items-center justify-between text-body">
+          <span className="text-muted-foreground">
             Tổng số học viên đã làm: {submissionsData?.total || 0}
           </span>
           {submissionsData?.submissions && submissionsData.submissions.length > 0 && (
             <div className="text-right">
-              <span className="text-gray-600">Điểm trung bình: </span>
-              <span className="font-semibold">
+              <span className="text-muted-foreground">Điểm trung bình: </span>
+              <span className="text-body-md">
                 {Math.round(
                   submissionsData.submissions.reduce(
                     (sum: number, sub: any) => sum + sub.score,
@@ -136,7 +139,7 @@ const ExerciseSubmissionsModal: React.FC<ExerciseSubmissionsModalProps> = ({
           showTotal: (total, range) => `${range[0]}-${range[1]} của ${total} kết quả`
         }}
         locale={{
-          emptyText: 'Chưa có học viên nào làm bài tập này'
+          emptyText: <EmptyState icon={Users} message="Chưa có học viên nào làm bài tập này" />
         }}
       />
     </Modal>

@@ -2,12 +2,18 @@ import { Button, Col, Form, Input, Modal, Row, Select, Space, Table } from 'antd
 import { useMemo, useState } from 'react'
 import { CiEdit } from 'react-icons/ci'
 import { MdDeleteOutline } from 'react-icons/md'
-import { toast } from 'react-hot-toast'
+import { toast } from 'sonner'
 import ReactQuill from 'react-quill'
 import 'react-quill/dist/quill.snow.css'
 import dictionaryApi from '@renderer/apis/dictionary-api'
 import { useQuery } from '@tanstack/react-query'
 import ImageUpload from '@renderer/components/ImageUpload'
+import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import ConfirmDeleteDialog from '@renderer/components/confirm-delete-dialog'
+import { EmptyState } from '@/components/states/empty-state'
+import { BookOpen } from 'lucide-react'
+
 const Dictionary: React.FC = () => {
   const [dictionaryParams, setDictionaryParams] = useState({
     page: 0,
@@ -40,6 +46,7 @@ const Dictionary: React.FC = () => {
     }))
   }, [dictionaryList])
   const [isCreatingDictionary, setIsCreatingDictionary] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; word: string } | null>(null)
   const handleDeleteDictionary = async (id: number): Promise<void> => {
     try {
       await dictionaryApi.deleteDictionary(id)
@@ -48,6 +55,8 @@ const Dictionary: React.FC = () => {
     } catch (error) {
       console.log(error)
       toast.error('Xóa từ thất bại')
+    } finally {
+      setDeleteTarget(null)
     }
   }
   const columns = [
@@ -59,7 +68,10 @@ const Dictionary: React.FC = () => {
     {
       title: 'từ điển',
       dataIndex: 'dictionary',
-      key: 'dictionary'
+      key: 'dictionary',
+      render: (text: string) => (
+        <Badge variant={text === 'Anh - Việt' ? 'default' : 'secondary'}>{text}</Badge>
+      )
     },
     {
       title: 'Phát âm',
@@ -79,47 +91,57 @@ const Dictionary: React.FC = () => {
       key: 'action',
       render: (_, record) => (
         <Space>
-          <Button
-            type="text"
-            icon={<CiEdit />}
-            size="large"
-            onClick={() => {
-              setEditDictionary({
-                definition: record.meaning,
-                word: record.word,
-                pronunciation: record.pronunciation,
-                type: record.dictionary === 'ev' ? 0 : 1,
-                id: record.key,
-                images: record.images
-              })
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="text"
+                icon={<CiEdit />}
+                size="large"
+                onClick={() => {
+                  setEditDictionary({
+                    definition: record.meaning,
+                    word: record.word,
+                    pronunciation: record.pronunciation,
+                    type: record.dictionary === 'ev' ? 0 : 1,
+                    id: record.key,
+                    images: record.images
+                  })
 
-              // Parse images from JSON string
-              let imageUrls: string[] = []
-              try {
-                if (record.images) {
-                  imageUrls = JSON.parse(record.images)
-                }
-              } catch (error) {
-                console.error('Error parsing images:', error)
-              }
+                  // Parse images from JSON string
+                  let imageUrls: string[] = []
+                  try {
+                    if (record.images) {
+                      imageUrls = JSON.parse(record.images)
+                    }
+                  } catch (error) {
+                    console.error('Error parsing images:', error)
+                  }
 
-              form.setFieldsValue({
-                dictionary: record.dictionary === 'ev' ? 'ev' : 've',
-                word: record.word,
-                pronunciation: record.pronunciation,
-                meaning: record.meaning,
-                images: imageUrls
-              })
-              setIsCreatingDictionary(true)
-            }}
-          />
-          <Button
-            danger
-            type="text"
-            icon={<MdDeleteOutline />}
-            size="large"
-            onClick={() => handleDeleteDictionary(record.key)}
-          />
+                  form.setFieldsValue({
+                    dictionary: record.dictionary === 'ev' ? 'ev' : 've',
+                    word: record.word,
+                    pronunciation: record.pronunciation,
+                    meaning: record.meaning,
+                    images: imageUrls
+                  })
+                  setIsCreatingDictionary(true)
+                }}
+              />
+            </TooltipTrigger>
+            <TooltipContent>Sửa từ</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                danger
+                type="text"
+                icon={<MdDeleteOutline />}
+                size="large"
+                onClick={() => setDeleteTarget({ id: record.key, word: record.word })}
+              />
+            </TooltipTrigger>
+            <TooltipContent>Xóa từ</TooltipContent>
+          </Tooltip>
         </Space>
       )
     }
@@ -164,12 +186,12 @@ const Dictionary: React.FC = () => {
     }
   }
   return (
-    <div className="p-4">
-      <h4 className="text-lg font-bold text-center">Bổ sung từ điển</h4>
+    <div>
+      <h1 className="mb-4 text-h1 text-neutral-900">Bổ sung từ điển</h1>
       <Table
         title={() => (
           <div className="flex justify-between">
-            <h4 className="text-lg font-bold">Từ đã thêm</h4>
+            <h2 className="text-h3 text-neutral-900">Từ đã thêm</h2>
             <Button
               type="primary"
               onClick={() => {
@@ -184,6 +206,9 @@ const Dictionary: React.FC = () => {
         )}
         columns={columns}
         dataSource={tableData}
+        locale={{
+          emptyText: <EmptyState icon={BookOpen} message="Chưa có từ nào trong từ điển" />
+        }}
         pagination={{
           pageSize: dictionaryList?.limit,
           total: dictionaryList?.total,
@@ -256,6 +281,12 @@ const Dictionary: React.FC = () => {
           </Form.Item>
         </Form>
       </Modal>
+      <ConfirmDeleteDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        itemName={deleteTarget?.word ?? ''}
+        onConfirm={() => deleteTarget && handleDeleteDictionary(deleteTarget.id)}
+      />
     </div>
   )
 }

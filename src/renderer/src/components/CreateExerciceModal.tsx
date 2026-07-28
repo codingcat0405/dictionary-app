@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react'
 import { Form, Input, Modal, Button, Radio, Space, Divider } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import dictionaryApi, { Exercise } from '@renderer/apis/dictionary-api'
-import { toast } from 'react-hot-toast'
+import { toast } from 'sonner'
 import AudioUpload from './AudioUpload'
 
 interface Question {
@@ -211,9 +211,12 @@ const CreateExerciseModal: React.FC<{
         <Divider orientation="left">Danh sách câu hỏi</Divider>
 
         {questions.map((question, index) => (
-          <div key={question.id} className="mb-6 p-4 border border-gray-200 rounded-md">
+          <div
+            key={question.id}
+            className="mb-6 rounded-lg border border-neutral-200 bg-neutral-50 p-4 shadow-xs"
+          >
             <div className="flex justify-between items-center mb-2">
-              <h3 className="text-base font-medium">Câu hỏi {index + 1}</h3>
+              <h3 className="text-h3 text-neutral-900">Câu hỏi {index + 1}</h3>
               {questions.length > 1 && (
                 <Button
                   danger
